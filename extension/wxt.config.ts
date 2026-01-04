@@ -27,6 +27,9 @@ const addToPublicPathsType = (srcPath: string, destPath: string, paths: string[]
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
+    webExt: {
+        chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
+    },
     modules: ['@wxt-dev/module-react'],
     srcDir: 'src',
     zip: {
@@ -47,9 +50,9 @@ export default defineConfig({
     },
     manifest: ({ browser, mode }) => {
         let manifest: UserManifest = {
-            name: 'asbplayer: Language-learning with subtitles',
-            description: '__MSG_extensionDescription__',
-            version: '1.13.0',
+            name: 'API subs for asbplayer',
+            description: 'API subs for asbplayer',
+            version: '1.0.4',
             action: { default_title: 'asbplayer' },
             default_locale: 'en',
             icons: {
@@ -155,7 +158,6 @@ export default defineConfig({
             manifest = {
                 ...manifest,
                 minimum_chrome_version: '116',
-                key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxmdAa3ymqAjLms43ympXqtyuJnC2bSYh70+5ZZmtyx/MsnGhTEdfbqtsp3BKxHbv0rPd49+Joacm1Shik5/mCppZ0h4I4ISMm983X01H6p/hfAzQYAcnvw/ZQNHAv1QgY9JiuyTBirCDoYB50Fxol/kI/0EviYXuX83KoYpjB0VGP/ssY9ocT//fQUbRmeLDJnciry8y6MduWXHzseOP99axQIjeVsNTE30L4fRN+ppX3aOkG/RFJNx0eI02qbLul3qw5dUuBK5GgMbYftwjHnDoOegnZYFr1sxRO1zsgmxdp/6du75RiDPRJOkPCz2GTrw4CX2FCywbDZlqaIpwqQIDAQAB',
                 commands,
             };
         }
@@ -169,8 +171,7 @@ export default defineConfig({
                 commands,
                 browser_specific_settings: {
                     gecko: {
-                        id: '{e4b27483-2e73-4762-b2ec-8d988a143a40}',
-                        update_url: 'https://killergerbah.github.io/asbplayer/firefox-extension-updates.json',
+                        id: '{3e0b3d41-1618-4764-b3a5-3f38f47b6d0a}',
                     },
                 },
             };
@@ -184,7 +185,7 @@ export default defineConfig({
                 host_permissions: ['<all_urls>'],
                 browser_specific_settings: {
                     gecko: {
-                        id: '{49de9206-c73e-4829-be4d-bda770d7f4b5}',
+                        id: '{a2f16d07-b655-4c1a-9873-c2e52d5a146f}',
                     },
                     gecko_android: {},
                 },

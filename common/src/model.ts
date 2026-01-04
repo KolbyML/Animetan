@@ -171,6 +171,7 @@ export interface VideoData {
     basename: string;
     error?: string;
     subtitles?: VideoDataSubtitleTrack[];
+    reAttempt?: boolean;
 }
 
 export enum VideoDataUiOpenReason {
@@ -199,6 +200,9 @@ export interface VideoDataUiModel {
     settings: VideoDataUiSettings;
     hasSeenFtue: boolean;
     hideRememberTrackPreferenceToggle: boolean;
+    episode?: number | '';
+    isAnimeSite?: boolean;
+    onSearch?: (title: string, episode: number | '') => void;
 }
 
 export interface VideoTabModel {
