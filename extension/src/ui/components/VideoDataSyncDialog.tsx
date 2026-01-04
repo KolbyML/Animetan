@@ -13,17 +13,18 @@ import TextField from '@mui/material/TextField';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import makeStyles from '@mui/styles/makeStyles';
-import Switch from '@mui/material/Switch';
-import LabelWithHoverEffect from '@project/common/components/LabelWithHoverEffect';
-import { ConfirmedVideoDataSubtitleTrack, VideoDataSubtitleTrack, VideoDataUiOpenReason } from '@project/common';
-import { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import MiniProfileSelector from '@project/common/components/MiniProfileSelector';
 import type { Profile } from '@project/common/settings';
 import Alert from '@mui/material/Alert';
+import Link from '@mui/material/Link';
 import { type ButtonBaseActions } from '@mui/material';
+import { Theme } from '@mui/material/styles'; // Added import
+import { ConfirmedVideoDataSubtitleTrack, VideoDataSubtitleTrack, VideoDataUiOpenReason } from '@project/common';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
-const createClasses = makeStyles((theme) => ({
+const createClasses = makeStyles((theme: Theme) => ({
+    // Added type
     relative: {
         position: 'relative',
     },
@@ -36,18 +37,27 @@ const createClasses = makeStyles((theme) => ({
     hide: {
         display: 'none',
     },
+    debugBox: {
+        marginTop: theme.spacing(2),
+        padding: theme.spacing(1),
+        backgroundColor: theme.palette.action.hover,
+        borderRadius: 4,
+        maxHeight: 150,
+        overflowY: 'auto',
+        fontSize: '0.75rem',
+        whiteSpace: 'pre-wrap',
+        fontFamily: 'monospace',
+        border: `1px solid ${theme.palette.divider}`,
+    },
 }));
 
-// An auto-calculated video name based on selected track
 function calculateVideoName(baseName: string, label: string, localFile: boolean | undefined) {
     if (baseName === '' && label) {
         return label;
     }
-
     if (label && !baseName.includes(label) && localFile !== true) {
         return `${baseName} - ${label}`;
     }
-
     return baseName;
 }
 
@@ -55,8 +65,6 @@ interface Props {
     open: boolean;
     disabled: boolean;
     isLoading: boolean;
-    // The video name automatically supplied by asbplayer's content script
-    // Not to be confused with the auto-calculated video name when user selects a subtitle track
     suggestedName: string;
     showSubSelect: boolean;
     subtitleTracks: VideoDataSubtitleTrack[];
@@ -77,6 +85,9 @@ interface Props {
     onSetActiveProfile: (profile: string | undefined) => void;
     onDismissFtue: () => void;
     isAnimeSite: boolean;
+    debugInfo?: string;
+    apiKey?: string;
+    onApiKeyChange?: (key: string) => void;
 }
 
 export default function VideoDataSyncDialog({
@@ -103,14 +114,18 @@ export default function VideoDataSyncDialog({
     onSetActiveProfile,
     onDismissFtue,
     isAnimeSite,
+    debugInfo,
+    apiKey,
+    onApiKeyChange,
 }: Props) {
     const { t } = useTranslation();
     const [userSelectedSubtitleTrackIds, setUserSelectedSubtitleTrackIds] = useState(['-', '-', '-']);
     const [name, setName] = useState('');
-    const [shouldRememberTrackChoices, setShouldRememberTrackChoices] = useState(false);
     const trimmedName = name.trim();
     const classes = createClasses();
     const [localEpisode, setLocalEpisode] = useState(initialEpisode);
+    const [localApiKey, setLocalApiKey] = useState(apiKey || '');
+    const [apiKeyError, setApiKeyError] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -119,32 +134,26 @@ export default function VideoDataSyncDialog({
                     return id !== undefined ? id : '-';
                 })
             );
+            setApiKeyError(false);
         } else if (!open) {
             setName('');
         }
     }, [open, selectedSubtitleTrackIds]);
 
     useEffect(() => {
-        if (open) {
-            setShouldRememberTrackChoices(defaultCheckboxState);
+        if (apiKey !== undefined) {
+            setLocalApiKey(apiKey);
         }
-    }, [open, defaultCheckboxState]);
+    }, [apiKey]);
 
     useEffect(() => {
         setName((name) => {
-            // Don't auto-update name if episode is set (arbitrarily doing this to prevent name from being changed when searching)
             if (localEpisode !== '') {
                 return name || suggestedName;
             }
-
             if (!subtitleTracks) {
-                // Unable to calculate the video name
                 return name;
             }
-
-            // If the video name is not calculated yet,
-            // or has already been calculated and not changed by the user,
-            // then calculate it (possibly again)
             if (
                 !name ||
                 name === suggestedName ||
@@ -154,15 +163,11 @@ export default function VideoDataSyncDialog({
                 )
             ) {
                 const selectedTrack = subtitleTracks.find((track) => track.id === userSelectedSubtitleTrackIds[0]);
-
                 if (selectedTrack === undefined || selectedTrack.url === '-') {
                     return suggestedName;
                 }
-
                 return calculateVideoName(suggestedName, selectedTrack.label, selectedTrack.localFile);
             }
-
-            // Otherwise, let the name be whatever the user set it to
             return name;
         });
 
@@ -175,12 +180,12 @@ export default function VideoDataSyncDialog({
     }, [suggestedName, userSelectedSubtitleTrackIds, subtitleTracks, initialEpisode, localEpisode]);
 
     function handleOkButtonClick() {
+        if (isAnimeSite && !localApiKey) {
+            setApiKeyError(true);
+            return;
+        }
         const selectedSubtitleTracks: ConfirmedVideoDataSubtitleTrack[] = allSelectedSubtitleTracks();
-        onConfirm(selectedSubtitleTracks, shouldRememberTrackChoices);
-    }
-
-    function handleRememberTrackChoices() {
-        setShouldRememberTrackChoices(!shouldRememberTrackChoices);
+        onConfirm(selectedSubtitleTracks, true);
     }
 
     function allSelectedSubtitleTracks() {
@@ -190,8 +195,7 @@ export default function VideoDataSyncDialog({
                 if (subtitle) {
                     const { localFile, label } = subtitle;
                     const trackName = localFile
-                        ? // Remove extension. The content script will add it back when rendering the file name on top of the video.
-                          label.substring(0, label.lastIndexOf('.'))
+                        ? label.substring(0, label.lastIndexOf('.'))
                         : calculateVideoName(trimmedName, label, localFile);
 
                     return {
@@ -218,7 +222,7 @@ export default function VideoDataSyncDialog({
                             error={!!error}
                             color="primary"
                             variant="filled"
-                            label={`${t('extension.videoDataSync.subtitleTrack')} ${i + 1}`}
+                            label={`${t('extension.videoDataSync.subtitleTrack')}`}
                             helperText={error || ''}
                             value={
                                 subtitleTracks.find((track) => track.id === userSelectedSubtitleTrackIds[i])?.id ?? '-'
@@ -251,7 +255,7 @@ export default function VideoDataSyncDialog({
         return subtitleTrackSelectors;
     }
 
-    const threeSubtitleTrackSelectors = generateSubtitleTrackSelectors(3);
+    const singleSubtitleTrackSelector = generateSubtitleTrackSelectors(1);
     const okActionRef = useRef<ButtonBaseActions | null>(null);
     const videoNameRef = useRef<HTMLInputElement>(null);
 
@@ -265,9 +269,20 @@ export default function VideoDataSyncDialog({
         setLocalEpisode(e.target.value === '' ? '' : parseInt(e.target.value));
     };
 
+    const handleApiKeyChangeInternal = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setLocalApiKey(val);
+        if (val) setApiKeyError(false);
+        onApiKeyChange?.(val);
+    };
+
     const isSearchDisabled = isLoading || !localEpisode || !name;
 
     const handleSearch = () => {
+        if (!localApiKey) {
+            setApiKeyError(true);
+            return;
+        }
         onSearch(name, localEpisode);
     };
 
@@ -298,7 +313,11 @@ export default function VideoDataSyncDialog({
                     <DialogContentText>{t('extension.videoDataSync.loadSubtitlesFirst')}</DialogContentText>
                 )}
                 {openReason === VideoDataUiOpenReason.failedToAutoLoadPreferredTrack && (
-                    <DialogContentText>{t('extension.videoDataSync.failedToAutoLoad')}</DialogContentText>
+                    <DialogContentText>
+                        {isAnimeSite
+                            ? 'Could not find a subtitle from your preferred provider for this episode.'
+                            : t('extension.videoDataSync.failedToAutoLoad')}
+                    </DialogContentText>
                 )}
                 <form>
                     <Grid container direction="column" spacing={2}>
@@ -330,45 +349,77 @@ export default function VideoDataSyncDialog({
                             />
                         </Grid>
                         {isAnimeSite && (
-                            <Grid item>
-                                <TextField
-                                    fullWidth
-                                    label={t('extension.videoDataSync.episode')}
-                                    value={localEpisode}
-                                    onChange={handleEpisodeChange}
-                                    margin="normal"
-                                    variant="outlined"
-                                    type="number"
-                                />
-                            </Grid>
+                            <>
+                                <Grid item>
+                                    <TextField
+                                        fullWidth
+                                        label="Jimaku API Key"
+                                        value={localApiKey}
+                                        onChange={handleApiKeyChangeInternal}
+                                        margin="normal"
+                                        variant="outlined"
+                                        type="text"
+                                        error={apiKeyError}
+                                        helperText={
+                                            <div style={{ textAlign: 'left', lineHeight: '1.4' }}>
+                                                {apiKeyError && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        color="error"
+                                                        display="block"
+                                                        style={{ marginBottom: 4, fontWeight: 'bold' }}
+                                                    >
+                                                        API Key is required to fetch subtitles.
+                                                    </Typography>
+                                                )}
+                                                <Typography variant="caption" display="block">
+                                                    Get an API key from{' '}
+                                                    <Link href="https://jimaku.cc" target="_blank" rel="noopener">
+                                                        jimaku.cc
+                                                    </Link>
+                                                </Typography>
+                                                <Typography variant="caption" display="block" style={{ marginLeft: 8 }}>
+                                                    1. You can get a free key by signing up on the site:{' '}
+                                                    <Link
+                                                        href="https://jimaku.cc/account"
+                                                        target="_blank"
+                                                        rel="noopener"
+                                                    >
+                                                        https://jimaku.cc/account
+                                                    </Link>
+                                                </Typography>
+                                                <Typography variant="caption" display="block" style={{ marginLeft: 8 }}>
+                                                    2. Generate an API key under the &quot;API&quot; heading and copy it
+                                                </Typography>
+                                            </div>
+                                        }
+                                    />
+                                </Grid>
+                                <Grid item>
+                                    <TextField
+                                        fullWidth
+                                        label={t('extension.videoDataSync.episode')}
+                                        value={localEpisode}
+                                        onChange={handleEpisodeChange}
+                                        margin="normal"
+                                        variant="outlined"
+                                        type="number"
+                                    />
+                                </Grid>
+                            </>
                         )}
-                        {threeSubtitleTrackSelectors}
-                        {!hideRememberTrackPreferenceToggle && (
-                            <Grid item>
-                                <LabelWithHoverEffect
-                                    control={
-                                        <Switch
-                                            checked={shouldRememberTrackChoices}
-                                            onChange={handleRememberTrackChoices}
-                                            color="primary"
-                                        />
-                                    }
-                                    label={t('extension.videoDataSync.rememberTrackPreference')}
-                                    labelPlacement="start"
-                                    style={{
-                                        display: 'flex',
-                                        marginLeft: 'auto',
-                                        marginRight: '-13px',
-                                        width: 'fit-content',
-                                    }}
-                                />
-                            </Grid>
-                        )}
+                        {singleSubtitleTrackSelector}
+
                         {isAnimeSite && (
                             <Grid item>
                                 <Button onClick={handleSearch} disabled={isSearchDisabled}>
                                     {t('extension.videoDataSync.search')}
                                 </Button>
+                            </Grid>
+                        )}
+                        {debugInfo && (
+                            <Grid item>
+                                <div className={classes.debugBox}>{debugInfo}</div>
                             </Grid>
                         )}
                     </Grid>

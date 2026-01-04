@@ -7,7 +7,7 @@ import { animeSiteInitConfig, getAnimeTitleAndEpisode, isAnimeSite } from '@/ser
 import { ExtensionSettingsStorage } from '@/services/extension-settings-storage';
 import type { ContentScriptContext } from '#imports';
 
-const excludeGlobs = ['*://killergerbah.github.io/asbplayer*', '*://app.asbplayer.dev/*', '*cloudflare.com*'];
+const excludeGlobs = ['*://kolbyml.github.io/asbplayer*', '*://app.asbplayer.dev/*', '*cloudflare.com*'];
 
 if (import.meta.env.DEV) {
     excludeGlobs.push('*://localhost:3000/*');
@@ -45,20 +45,20 @@ export default defineContentScript({
 
         document.addEventListener('DOMContentLoaded', async () => {
             if (!isCurrentSiteAnimeSite) return;
-            
+
             // Inject Debug Button Loop
             setInterval(() => {
                 if (!document.querySelector('#asbplayer-debug-btn')) {
                     // Heuristic: Find the "Auto Play" text to locate the control bar
                     const allElements = Array.from(document.querySelectorAll('span, div, p, label'));
-                    const autoPlayEl = allElements.find(el => el.textContent?.trim() === 'Auto Play');
-                    
+                    const autoPlayEl = allElements.find((el) => el.textContent?.trim() === 'Auto Play');
+
                     if (autoPlayEl) {
                         // Navigate up to the flex container (the row of controls)
                         let container = autoPlayEl.parentElement;
                         // Walk up a few levels to find the main control bar container
-                        for(let i=0; i<3; i++) {
-                            if(container && getComputedStyle(container).display === 'flex') break;
+                        for (let i = 0; i < 3; i++) {
+                            if (container && getComputedStyle(container).display === 'flex') break;
                             container = container?.parentElement || null;
                         }
 
@@ -72,12 +72,16 @@ export default defineContentScript({
                             btn.style.display = 'flex';
                             btn.style.alignItems = 'center';
                             btn.style.opacity = '0.8';
-                            btn.innerHTML = '<span>🐞</span>'; 
+                            btn.innerHTML = '<span>🐞</span>';
                             btn.title = 'Show Asbplayer Debug Info';
-                            
+
                             // Hover effect
-                            btn.onmouseenter = () => { btn.style.opacity = '1'; };
-                            btn.onmouseleave = () => { btn.style.opacity = '0.8'; };
+                            btn.onmouseenter = () => {
+                                btn.style.opacity = '1';
+                            };
+                            btn.onmouseleave = () => {
+                                btn.style.opacity = '0.8';
+                            };
 
                             btn.onclick = () => {
                                 browser.runtime.sendMessage({ command: 'asbplayer-toggle-debug-info' });

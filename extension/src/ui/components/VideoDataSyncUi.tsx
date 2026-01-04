@@ -52,8 +52,9 @@ export default function VideoDataSyncUi({ bridge }: Props) {
     const [hasSeenFtue, setHasSeenFtue] = useState<boolean>();
     const [hideRememberTrackPreferenceToggle, setHideRememberTrackPreferenceToggle] = useState<boolean>();
     const [episode, setEpisode] = useState<number | ''>('');
-
     const [isAnimeSite, setIsAnimeSite] = useState<boolean>(false);
+    const [debugInfo, setDebugInfo] = useState<string>('');
+    const [apiKey, setApiKey] = useState<string>('');
 
     const theme = useMemo(() => createTheme((themeType || 'dark') as PaletteMode), [themeType]);
 
@@ -151,6 +152,10 @@ export default function VideoDataSyncUi({ bridge }: Props) {
                 setThemeType(model.settings.themeType);
                 setProfiles(model.settings.profiles);
                 setActiveProfile(model.settings.activeProfile);
+                const settingsAny = model.settings as any;
+                if (settingsAny.apiKey !== undefined) {
+                    setApiKey(settingsAny.apiKey);
+                }
             }
 
             if (model.hasSeenFtue !== undefined) {
@@ -167,6 +172,11 @@ export default function VideoDataSyncUi({ bridge }: Props) {
 
             if (model.isAnimeSite !== undefined) {
                 setIsAnimeSite(model.isAnimeSite);
+            }
+
+            const rawModel = model as any;
+            if (rawModel.debugInfo !== undefined) {
+                setDebugInfo(rawModel.debugInfo);
             }
         });
     }, [bridge, t]);
@@ -245,6 +255,7 @@ export default function VideoDataSyncUi({ bridge }: Props) {
         setHasSeenFtue(true);
         bridge.sendMessageFromServer({ command: 'dismissFtue' });
     }, [bridge]);
+
     const handleSearch = useCallback(
         (title: string, episode: number | '') => {
             const message: VideoDataSearchMessage = {
@@ -254,6 +265,16 @@ export default function VideoDataSyncUi({ bridge }: Props) {
             };
             bridge.sendMessageFromServer(message);
             setOpen(true);
+        },
+        [bridge]
+    );
+
+    const handleApiKeyChange = useCallback(
+        (key: string) => {
+            // Update local state immediately
+            setApiKey(key);
+            // Send to controller to save
+            bridge.sendMessageFromServer({ command: 'updateApiKey', apiKey: key } as any);
         },
         [bridge]
     );
@@ -286,6 +307,9 @@ export default function VideoDataSyncUi({ bridge }: Props) {
                     isAnimeSite={isAnimeSite}
                     episode={episode}
                     onSearch={handleSearch}
+                    debugInfo={debugInfo}
+                    apiKey={apiKey}
+                    onApiKeyChange={handleApiKeyChange}
                 />
                 <input
                     ref={fileInputRef}

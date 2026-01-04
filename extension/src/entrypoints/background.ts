@@ -178,6 +178,17 @@ export default defineBackground(() => {
             return false;
         }
 
+        if (request.command === 'asbplayer-toggle-debug-info' && sender.tab?.id) {
+            const extensionToVideoCommand = {
+                sender: 'asbplayer-extension-to-video',
+                message: {
+                    command: 'show-debug-info',
+                },
+            };
+            browser.tabs.sendMessage(sender.tab.id, extensionToVideoCommand);
+            return;
+        }
+
         for (const handler of handlers) {
             if (
                 (typeof handler.sender === 'string' && handler.sender === request.sender) ||

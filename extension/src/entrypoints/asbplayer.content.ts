@@ -15,7 +15,7 @@ import { ExtensionGlobalStateProvider } from '@/services/extension-global-state-
 import type { ContentScriptContext } from '#imports';
 import gte from 'semver/functions/gte';
 
-const matches = ['*://killergerbah.github.io/asbplayer*', '*://app.asbplayer.dev/*'];
+const matches = ['*://kolbyml.github.io/asbplayer*', '*://app.asbplayer.dev/*'];
 
 if (import.meta.env.DEV) {
     matches.push('*://localhost/*');

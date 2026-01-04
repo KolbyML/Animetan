@@ -249,7 +249,7 @@ export default function Bar({
                             </ListItemButton>
                         </ListItem>
                     </Link>
-                    <Link href="https://github.com/killergerbah/asbplayer/issues">
+                    <Link href="https://github.com/kolbyml/Animetan/issues">
                         <ListItem disablePadding>
                             <ListItemButton>
                                 <ListItemIcon>
@@ -269,7 +269,7 @@ export default function Bar({
                             </ListItemButton>
                         </ListItem>
                     )}
-                    <Link href="https://github.com/killergerbah/asbplayer#donations">
+                    <Link href="https://github.com/kolbyml/Animetan#donations">
                         <ListItem disablePadding>
                             <ListItemButton>
                                 <ListItemIcon>

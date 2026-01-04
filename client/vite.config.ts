@@ -7,7 +7,7 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd());
-    const domain = env.VITE_APP_DOMAIN || 'killergerbah.github.io';
+    const domain = env.VITE_APP_DOMAIN || 'kolbyml.github.io';
     const base = env.VITE_APP_BASE_PATH || '/asbplayer';
     return {
         base,

@@ -1,18 +1,18 @@
-# API subs for asbplayer
+# Animetan - ASBPlayer + Automatic Anime Subtitles + Saved Offsets per show
 
 Automate your language learning workflow by synchronizing subtitles with your favorite streaming video players. Set your preferences once, and the extension handles the rest.
-Set up your subtitle provider and offset once at the start of each season, and have it automatically apply to all episodes of that show!
+Set up your subtitle provider and offset once at the start of each season, and have it automatically apply to all episodes of that show! Switch shows, and the extension remembers your settings for each series.
 
 ## Extension Installation
 
-🦊 Firefox Addon: https://addons.mozilla.org/en-CA/firefox/addon/api-subs-for-asbplayer/
+🦊 Firefox Addon:
 
-🌐 Chrome extension: https://chromewebstore.google.com/detail/api-subs-for-asbplayer/ncfciojfgalkgpnemgndcoibdpcgbpfc
+🌐 Chrome extension:
 
 <details>
 <summary>Instructions for installing via the assets </summary>
 
-1. Go to the [Releases](https://github.com/zakwarsame/asbplayer/releases) page
+1. Go to the [Releases](https://github.com/kolbyml/Animetan/releases) page
 2. Find the latest release
 3. Under "Assets", download the appropriate file:
     - For Chrome/Chromium browsers: `projectextension-x.x.x-chromium.zip`
@@ -29,13 +29,6 @@ Set up your subtitle provider and offset once at the start of each season, and h
         - Select the downloaded `.zip` file (do not extract it)
 
  </details>
-
-## Setup
-
-1. Get an API key from [jimaku.cc](https://jimaku.cc)
-    - You can get a free key by signing up on the site: https://jimaku.cc/account
-    - Generate an API key under the "API" heading and copy it
-2. Open asbplayer settings, click on the "Misc" tab and enter your API key in the "API Key" field
 
 ## Usage
 
@@ -59,21 +52,10 @@ Set up your subtitle provider and offset once at the start of each season, and h
 
 ### Web App Features
 
-[Click here to view the web app](https://zakwarsame.github.io/asbplayer/)
+[Click here to view the web app](https://kolbyml.github.io/asbplayer/)
 
 - **Integrated Search**: A new button in the top left corner allows for quick subtitle lookups.
 - **Instant Loading**: Automatically injects found subtitles into the active player instance.
-
-**Extension demo:**
-
-> [!NOTE]
-> this demo is a bit outdated. You don't need to click "Search". And if you have `Auto-load detected subtitle` enabled, it picks the first one and loads it as soon as you click on anime.
-
-https://github.com/user-attachments/assets/08be7905-fe75-4ef4-8424-0ea20753e5af
-
-**Web app demo:**
-
-https://github.com/user-attachments/assets/5a7f0c93-5c30-49bc-a816-04441a53bddc
 
 ## How it Works
 

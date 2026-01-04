@@ -30,9 +30,9 @@ jobs:
             - name: Create pull request
               uses: peter-evans/create-pull-request@v7
               with:
-                commit-message: |
-                  Pulled latest loc strings
-                branch: ${{ env.LOC_BRANCH }}
+                  commit-message: |
+                      Pulled latest loc strings
+                  branch: ${{ env.LOC_BRANCH }}
             - name: Check outputs
               if: ${{ steps.cpr.outputs.pull-request-number }}
               run: |

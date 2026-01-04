@@ -24,7 +24,7 @@
         "vite": "^7.0.6",
         "vite-tsconfig-paths": "^5.1.4"
     },
-    "homepage": "https://killergerbah.github.io/asbplayer",
+    "homepage": "https://kolbyml.github.io/asbplayer",
     "scripts": {
         "start": "VITE_APP_GIT_COMMIT=$(git rev-parse --short HEAD) vite",
         "verify": "../scripts/loc/loc-keys-match && tsc && jest",

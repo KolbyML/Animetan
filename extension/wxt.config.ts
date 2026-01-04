@@ -50,8 +50,8 @@ export default defineConfig({
     },
     manifest: ({ browser, mode }) => {
         let manifest: UserManifest = {
-            name: 'API subs for asbplayer',
-            description: 'API subs for asbplayer',
+            name: 'Animetan: Asbplayer with automation',
+            description: 'Animetan: Asbplayer with automation',
             version: '1.0.4',
             action: { default_title: 'asbplayer' },
             default_locale: 'en',
@@ -171,8 +171,11 @@ export default defineConfig({
                 commands,
                 browser_specific_settings: {
                     gecko: {
-                        id: '{3e0b3d41-1618-4764-b3a5-3f38f47b6d0a}',
-                    },
+                        id: '{05d106c7-dd78-4be1-853c-619c21685643}',
+                        data_collection_permissions: {
+                            required: ['none'],
+                        },
+                    } as any,
                 },
             };
         }
@@ -184,9 +187,7 @@ export default defineConfig({
                 ...manifest,
                 host_permissions: ['<all_urls>'],
                 browser_specific_settings: {
-                    gecko: {
-                        id: '{a2f16d07-b655-4c1a-9873-c2e52d5a146f}',
-                    },
+                    gecko: {},
                     gecko_android: {},
                 },
             };

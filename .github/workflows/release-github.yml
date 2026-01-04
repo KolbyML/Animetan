@@ -1,0 +1,77 @@
+name: Auto Bump & Release
+
+on:
+    workflow_dispatch:
+        inputs:
+            bump_type:
+                description: 'Version bump type (patch, minor, major)'
+                required: true
+                default: 'patch'
+                type: choice
+                options:
+                    - patch
+                    - minor
+                    - major
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write # Required to push the new tag and create the release
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # Required to see existing tags
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Setup Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 22
+                  cache: 'npm'
+
+            - name: Setup Yarn
+              run: |
+                  npm install --global yarn
+                  yarn set version 3.2.0
+
+            - name: Install Dependencies
+              run: yarn install
+
+            - name: Configure Git User
+              run: |
+                  git config --global user.name "github-actions[bot]"
+                  git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+            - name: Bump Version & Push Tag
+              id: bump_version
+              run: |
+                  # Bump version in package.json and create a git tag
+                  # The -m flag creates a commit message skipping CI to prevent loops
+                  npm version ${{ inputs.bump_type }} -m "Bump version to %s [skip ci]"
+                  
+                  # Extract the new tag (e.g., v1.0.5) to use in the release step
+                  NEW_TAG=$(git describe --abbrev=0 --tags)
+                  echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+                  
+                  # Push the commit (package.json update) and the new tag
+                  git push origin HEAD:main --follow-tags
+
+            - name: Build Chrome Extension
+              run: yarn workspace @project/extension run zip
+
+            - name: Build Firefox Extension
+              run: yarn workspace @project/extension run zip:firefox
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: ${{ env.NEW_TAG }}
+                  name: Release ${{ env.NEW_TAG }}
+                  draft: false
+                  prerelease: false
+                  generate_release_notes: true
+                  files: |
+                      extension/.output/*.zip
+

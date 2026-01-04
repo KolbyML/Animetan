@@ -21,7 +21,7 @@ const DOMAIN_BLOCKLIST = [
     'crunchyroll.com',
     'disneyplus.com',
     'hulu.com',
-    'primevideo.com'
+    'primevideo.com',
 ];
 
 const SITE_CONFIGS: AnimeSiteConfig[] = [
@@ -83,7 +83,7 @@ const SITE_CONFIGS: AnimeSiteConfig[] = [
             const title = titleElement?.textContent?.trim() || '';
             const titleTag = document.querySelector('title');
             const titleText = titleTag?.textContent || '';
-            
+
             const episodeMatch = titleText.match(/(\d+)x(\d+)/);
             let episode = '';
             if (episodeMatch && episodeMatch[2]) {
@@ -141,8 +141,7 @@ export function getAnimeTitleAndEpisode(url: string, maxRetries = 5, delay = 100
                             });
                             return;
                         }
-                    } catch (e) {
-                    }
+                    } catch (e) {}
                 }
             }
 
@@ -164,7 +163,7 @@ export function getAnimeTitleAndEpisode(url: string, maxRetries = 5, delay = 100
 function isBlockedDomain(url: string): boolean {
     try {
         const hostname = new URL(url).hostname.toLowerCase();
-        return DOMAIN_BLOCKLIST.some(blocked => hostname.includes(blocked));
+        return DOMAIN_BLOCKLIST.some((blocked) => hostname.includes(blocked));
     } catch {
         return true;
     }
@@ -172,13 +171,13 @@ function isBlockedDomain(url: string): boolean {
 
 export function isAnimeSite(url: string): boolean {
     if (isBlockedDomain(url)) return false;
-    
-    return SITE_CONFIGS.some(config => config.pathPattern.test(url));
+
+    return SITE_CONFIGS.some((config) => config.pathPattern.test(url));
 }
 
 export function getAnimeSiteInfo(url: string) {
     if (isBlockedDomain(url)) return undefined;
-    return SITE_CONFIGS.find(config => config.pathPattern.test(url));
+    return SITE_CONFIGS.find((config) => config.pathPattern.test(url));
 }
 
 export function animeSiteInitConfig(
@@ -196,7 +195,7 @@ export function animeSiteInitConfig(
     let isReferredFromAnimeSite = false;
 
     if (referrer) {
-        isReferredFromAnimeSite = SITE_CONFIGS.some(config => config.pathPattern.test(referrer));
+        isReferredFromAnimeSite = SITE_CONFIGS.some((config) => config.pathPattern.test(referrer));
     }
 
     return {

@@ -206,7 +206,7 @@ const About = ({ appVersion, extensionVersion }: Props) => {
             <Box style={{ width: '100%', textAlign: 'center' }}>
                 <LogoIcon style={{ width: 48, height: 48 }} />
                 <br />
-                <Link variant="h5" href="https://github.com/killergerbah/asbplayer">
+                <Link variant="h5" href="https://github.com/kolbyml/Animetan">
                     asbplayer
                 </Link>
                 <br />
@@ -214,9 +214,7 @@ const About = ({ appVersion, extensionVersion }: Props) => {
                     <>
                         <Typography variant="caption">
                             {t('about.appVersion')}{' '}
-                            <Link href={`https://github.com/killergerbah/asbplayer/commit/${appVersion}`}>
-                                {appVersion}
-                            </Link>
+                            <Link href={`https://github.com/kolbyml/Animetan/commit/${appVersion}`}>{appVersion}</Link>
                         </Typography>
                         <br />
                     </>
@@ -224,7 +222,7 @@ const About = ({ appVersion, extensionVersion }: Props) => {
                 {extensionVersion && (
                     <Typography variant="caption">
                         {t('about.extensionVersion')}{' '}
-                        <Link href={`https://github.com/killergerbah/asbplayer/releases/tag/v${extensionVersion}`}>
+                        <Link href={`https://github.com/kolbyml/Animetan/releases/tag/v${extensionVersion}`}>
                             {extensionVersion}
                         </Link>
                     </Typography>

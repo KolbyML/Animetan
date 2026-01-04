@@ -10,9 +10,10 @@ import {
     VideoDataUiBridgeOpenFileMessage,
     VideoDataUiModel,
     VideoDataUiOpenReason,
-    VideoToExtensionCommand,
     VideoDataSearchMessage,
     UpdateEpisodeMessage,
+    OffsetToVideoMessage,
+    VideoToExtensionCommand,
 } from '@project/common';
 import { AsbplayerSettings, SettingsProvider } from '@project/common/settings';
 import { base64ToBlob, bufferToBase64 } from '@project/common/base64';
@@ -54,6 +55,11 @@ interface ShowOptions {
     fromAsbplayerId?: string;
 }
 
+interface ShowSettings {
+    providerPattern?: string;
+    offset?: number;
+}
+
 const fetchDataForLanguageOnDemand = (language: string): Promise<VideoData> => {
     return new Promise((resolve, reject) => {
         const listener = (event: Event) => {
@@ -88,6 +94,12 @@ export default class VideoDataSyncController {
     private _isAnimeSite: boolean = false;
     private _pageLoadSynced: boolean = false;
     private _lastConfirmedTrackIds?: string[];
+    private _currentAnimeTitle: string = '';
+    private _messageListener?: (request: any, sender: any, sendResponse: any) => void;
+    private _offsetEventListener?: (event: Event) => void;
+    private _debugInfo: string = '';
+
+    private _ignoreOffsetsUntil: number = 0;
 
     constructor(context: Binding, settings: SettingsProvider) {
         this._context = context;
@@ -106,7 +118,145 @@ export default class VideoDataSyncController {
         this._isTutorial = isOnTutorialPage();
         this._pageLoadSynced = false;
         this._isAnimeSite = false;
-        this.checkIfAnimeSite();
+
+        // Initialize: Check site type and attempt silent auto-load
+        this.init();
+
+        this._messageListener = async (request, sender, sendResponse) => {
+            if (request.sender === 'asbplayer-extension-to-video' && request.message.command === 'show-debug-info') {
+                await this.showDebugInfo();
+            }
+        };
+        browser.runtime.onMessage.addListener(this._messageListener);
+
+        this._offsetEventListener = (event: Event) => {
+            const customEvent = event as CustomEvent;
+            const offset = customEvent.detail?.offset;
+
+            if (Date.now() < this._ignoreOffsetsUntil) {
+                this.appendDebug(`Ignored manual offset update: ${offset}ms (Lock Active)`);
+                return;
+            }
+
+            if (this._currentAnimeTitle && typeof offset === 'number') {
+                this._saveShowOffset(this._currentAnimeTitle, offset);
+                this.appendDebug(`Saved Manual Offset: ${offset}ms for "${this._currentAnimeTitle}"`);
+            }
+        };
+        this._context.video.addEventListener('asbplayer-offset-change', this._offsetEventListener);
+    }
+
+    private appendDebug(msg: string) {
+        const time = new Date().toLocaleTimeString();
+        this._debugInfo += `[${time}] ${msg}\n`;
+        console.log('[ASBPlayer Sync Debug]', msg);
+    }
+
+    private async showDebugInfo() {
+        const title = this._currentAnimeTitle || 'Unknown';
+        const showSettings = await this._getShowSettings(title);
+
+        let info = `Title: ${title}\n`;
+        info += `Episode: ${this._episode}\n`;
+        info += `Saved Provider Pattern: ${showSettings?.providerPattern ?? 'None'}\n`;
+        info += `Saved Offset: ${showSettings?.offset ?? 0} ms\n`;
+        info += `Is Anime Site: ${this._isAnimeSite}\n`;
+        info += `Subtitles Loaded: ${this._hasSubtitles()}\n`;
+        info += `Page Load Synced: ${this._pageLoadSynced}\n`;
+        info += `Ignore Offsets Until: ${this._ignoreOffsetsUntil} (Now: ${Date.now()})\n`;
+
+        this.appendDebug('User requested debug info.');
+        this._debugInfo += '\n--- Current State ---\n' + info;
+
+        await this.show({ reason: VideoDataUiOpenReason.userRequested });
+    }
+
+    private async init() {
+        await this.checkIfAnimeSite();
+
+        if (this._isAnimeSite && !this._hasSubtitles()) {
+            this.appendDebug('Init: Anime site detected, no subtitles loaded.');
+            try {
+                const { title, episode } = await this.obtainTitleAndEpisode();
+                if (title && episode) {
+                    this._currentAnimeTitle = title;
+                    this.appendDebug(`Init: Obtained info - Title: "${title}", Ep: ${episode}`);
+                    await this._attemptSilentAutoSync(title, parseInt(episode));
+                } else {
+                    this.appendDebug('Init: Failed to obtain Title/Episode.');
+                }
+            } catch (e) {
+                this.appendDebug(`Init Error: ${e instanceof Error ? e.message : String(e)}`);
+            }
+        }
+    }
+
+    private async _attemptSilentAutoSync(title: string, episode: number) {
+        const apiKey = await this._context.settings.getSingle('apiKey');
+        const showSettings = await this._getShowSettings(title);
+
+        this.appendDebug(`AutoSync: Saved Provider for "${title}": "${showSettings?.providerPattern ?? 'NONE'}"`);
+
+        try {
+            const { anilistId } = await fetchAnilistInfo(title);
+            if (!anilistId) throw new Error('Anilist ID not found');
+
+            const subtitles = await fetchSubtitles(anilistId, episode, apiKey || '');
+            if (typeof subtitles === 'string') throw new Error(subtitles);
+
+            const fetchedSubtitles: VideoDataSubtitleTrack[] = subtitles.map((sub, index) => {
+                const url = new URL(sub.url);
+                const extension = url.pathname.split('.').pop() || 'srt';
+                return {
+                    id: `fetched-${index}`,
+                    language: 'ja',
+                    url: sub.url,
+                    label: sub.name,
+                    extension: extension,
+                };
+            });
+
+            this.appendDebug(`AutoSync: Fetched ${fetchedSubtitles.length} tracks.`);
+            if (fetchedSubtitles.length > 0) {
+                this.appendDebug(`AutoSync: First track: "${fetchedSubtitles[0].label}"`);
+            }
+
+            this._syncedData = {
+                subtitles: fetchedSubtitles,
+                basename: title,
+                error: undefined,
+            } as VideoData;
+            this._episode = episode;
+
+            let matchedTrack: VideoDataSubtitleTrack | undefined;
+            if (showSettings?.providerPattern) {
+                matchedTrack = fetchedSubtitles.find((t) =>
+                    t.label.toLowerCase().includes(showSettings.providerPattern!.toLowerCase())
+                );
+                this.appendDebug(
+                    `AutoSync: Match attempt with "${showSettings.providerPattern}" -> ${matchedTrack ? 'FOUND' : 'NOT FOUND'}`
+                );
+            } else {
+                this.appendDebug('AutoSync: No provider pattern set.');
+            }
+
+            if (matchedTrack) {
+                this._pageLoadSynced = true;
+                const selection = [matchedTrack, this._emptySubtitle, this._emptySubtitle];
+                await this._syncData(selection);
+                this.appendDebug('AutoSync: Loaded track silently.');
+            } else {
+                await this.show({
+                    reason: showSettings?.providerPattern
+                        ? VideoDataUiOpenReason.failedToAutoLoadPreferredTrack
+                        : VideoDataUiOpenReason.userRequested,
+                });
+            }
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            this.appendDebug(`AutoSync Failed: ${msg}`);
+            await this.show({ reason: VideoDataUiOpenReason.userRequested });
+        }
     }
 
     private get lastLanguagesSynced(): string[] {
@@ -121,6 +271,19 @@ export default class VideoDataSyncController {
         if (this._dataReceivedListener) {
             document.removeEventListener('asbplayer-synced-data', this._dataReceivedListener, false);
         }
+
+        if (this._messageListener) {
+            browser.runtime.onMessage.removeListener(this._messageListener);
+            this._messageListener = undefined;
+        }
+
+        if (this._offsetEventListener) {
+            this._context.video.removeEventListener('asbplayer-offset-change', this._offsetEventListener);
+            this._offsetEventListener = undefined;
+        }
+
+        // IMPORTANT: Cleanup the UI frame to prevent ghost iframes blocking clicks on SPA navigation
+        this._frame.unbind();
 
         this._dataReceivedListener = undefined;
         this._syncedData = undefined;
@@ -155,7 +318,6 @@ export default class VideoDataSyncController {
             return;
         }
 
-        // Only clear synced data if we don't have any subtitle data yet
         if (!this._hasSubtitles()) {
             this._syncedData = undefined;
             this._autoSyncAttempted = false;
@@ -181,8 +343,10 @@ export default class VideoDataSyncController {
             }
             document.dispatchEvent(new CustomEvent('asbplayer-get-synced-data', { detail: payload }));
         } else {
-            // If we already have subtitle data, show the dialog directly
             if (this._hasSubtitles()) {
+                if (this._isAnimeSite && this._pageLoadSynced) {
+                    return;
+                }
                 this.show({ reason: VideoDataUiOpenReason.userRequested });
             } else {
                 document.dispatchEvent(new CustomEvent('asbplayer-get-synced-data'));
@@ -208,12 +372,10 @@ export default class VideoDataSyncController {
 
     private async _buildModel(additionalFields: Partial<VideoDataUiModel>) {
         const subtitleTrackChoices = this._syncedData?.subtitles ?? [];
-        const subs = this._matchLastSyncedWithAvailableTracks();
+        const subs = await this._matchLastSyncedWithAvailableTracks();
         const autoSelectedTracks: VideoDataSubtitleTrack[] = subs.autoSelectedTracks;
         const autoSelectedTrackIds = this._isTutorial
-            ? // '1' is the ID of the non-empty track in the tutorial
-              // See asbplayer-tutorial-page.ts
-              ['1', '-', '-']
+            ? ['1', '-', '-']
             : autoSelectedTracks.map((subtitle) => subtitle.id || '-');
         const defaultCheckboxState = !this._isTutorial && subs.completeMatch;
         const themeType = await this._context.settings.getSingle('themeType');
@@ -226,14 +388,20 @@ export default class VideoDataSyncController {
         let title = '';
         let episode = '';
         let autoSelectBasedOnLastSavedSub = autoSelectedTrackIds;
+
         if (this._isAnimeSite) {
-            autoSelectBasedOnLastSavedSub =
-                this._lastConfirmedTrackIds ??
-                (subtitleTrackChoices.length > 0 ? [subtitleTrackChoices[0].id, '-', '-'] : autoSelectedTrackIds);
             ({ title, episode } = await this.obtainTitleAndEpisode());
+            this._currentAnimeTitle = title;
+            if (subs.completeMatch && subtitleTrackChoices.length > 0) {
+                autoSelectBasedOnLastSavedSub = autoSelectedTrackIds;
+            } else {
+                autoSelectBasedOnLastSavedSub =
+                    this._lastConfirmedTrackIds ??
+                    (subtitleTrackChoices.length > 0 ? [subtitleTrackChoices[0].id, '-', '-'] : autoSelectedTrackIds);
+            }
         }
 
-        return this._syncedData
+        const model: any = this._syncedData
             ? {
                   isLoading: this._syncedData.subtitles === undefined,
                   suggestedName: title ? title : this._syncedData.basename,
@@ -246,10 +414,10 @@ export default class VideoDataSyncController {
                       themeType,
                       profiles: await profilesPromise,
                       activeProfile: (await activeProfilePromise)?.name,
+                      apiKey: await this._context.settings.getSingle('apiKey'),
                   },
                   hasSeenFtue,
                   hideRememberTrackPreferenceToggle,
-                  //  todo: put these in one state object
                   episode: episode ? episode : this._episode,
                   isAnimeSite: this._isAnimeSite,
                   ...additionalFields,
@@ -274,14 +442,31 @@ export default class VideoDataSyncController {
                   isAnimeSite: this._isAnimeSite,
                   ...additionalFields,
               };
+
+        model.debugInfo = this._debugInfo;
+        return model;
     }
 
-    private _matchLastSyncedWithAvailableTracks() {
+    private async _matchLastSyncedWithAvailableTracks() {
         const subtitleTrackChoices = this._syncedData?.subtitles ?? [];
         let tracks = {
             autoSelectedTracks: [this._emptySubtitle, this._emptySubtitle, this._emptySubtitle],
             completeMatch: false,
         };
+
+        if (this._isAnimeSite && this._currentAnimeTitle) {
+            const settings = await this._getShowSettings(this._currentAnimeTitle);
+            if (settings?.providerPattern) {
+                const preferredTrack = subtitleTrackChoices.find((t) =>
+                    t.label.toLowerCase().includes(settings.providerPattern!.toLowerCase())
+                );
+                if (preferredTrack) {
+                    tracks.autoSelectedTracks[0] = preferredTrack;
+                    tracks.completeMatch = true;
+                    return tracks;
+                }
+            }
+        }
 
         const emptyChoice = this.lastLanguagesSynced.some((lang) => lang !== '-') === undefined;
 
@@ -325,37 +510,30 @@ export default class VideoDataSyncController {
     private async _setSyncedData(data: VideoData) {
         this._syncedData = data;
 
+        if (data.basename && this._isAnimeSite) {
+            this._currentAnimeTitle = data.basename;
+        }
+
         if (this._syncedData?.subtitles !== undefined && (await this._canAutoSync())) {
             if (!this._autoSyncAttempted) {
                 this._autoSyncAttempted = true;
-                const subs = this._matchLastSyncedWithAvailableTracks();
-
-                // Only auto-sync if we truly have subtitles to sync (- means "No subtitle")
+                const subs = await this._matchLastSyncedWithAvailableTracks();
                 const isAnimeSite = this._isAnimeSite;
                 const hasAvailableSubtitles = this._syncedData.subtitles.length > 0;
 
-                // For anime sites with available subtitles, always auto-load
-                // For other sites, follow the normal language matching logic
-                const shouldAutoSync = isAnimeSite ? hasAvailableSubtitles : subs.completeMatch;
+                const shouldAutoSync = isAnimeSite ? hasAvailableSubtitles && subs.completeMatch : subs.completeMatch;
 
                 if (shouldAutoSync) {
-                    let autoSelectedTracks: VideoDataSubtitleTrack[];
-
-                    if (isAnimeSite && this._syncedData.subtitles.length > 0) {
-                        // For anime sites, auto-select the first available subtitle
-                        autoSelectedTracks = [this._syncedData.subtitles[0], this._emptySubtitle, this._emptySubtitle];
-                    } else {
-                        autoSelectedTracks = subs.autoSelectedTracks;
-                    }
-
+                    let autoSelectedTracks: VideoDataSubtitleTrack[] = subs.autoSelectedTracks;
                     await this._syncData(autoSelectedTracks);
 
                     if (!this._frame.hidden) {
                         this._hideAndResume();
                     }
+                } else if (isAnimeSite && hasAvailableSubtitles) {
+                    await this.show({ reason: VideoDataUiOpenReason.failedToAutoLoadPreferredTrack });
                 } else {
                     const shouldPrompt = await this._settings.getSingle('streamingAutoSyncPromptOnFailure');
-
                     if (shouldPrompt) {
                         await this.show({ reason: VideoDataUiOpenReason.failedToAutoLoadPreferredTrack });
                     }
@@ -376,11 +554,9 @@ export default class VideoDataSyncController {
 
     private async _canAutoSync(): Promise<boolean> {
         const page = await currentPageDelegate();
-
         if (page === undefined) {
             return this._autoSync ?? false;
         }
-
         return this._autoSync === true && page.canAutoSync(this._context.video);
     }
 
@@ -410,14 +586,11 @@ export default class VideoDataSyncController {
                 if ('activeProfile' === message.command) {
                     const activeProfileMessage = message as ActiveProfileMessage;
                     await this._context.settings.setActiveProfile(activeProfileMessage.profile);
-                    const settingsUpdatedCommand: VideoToExtensionCommand<SettingsUpdatedMessage> = {
+                    browser.runtime.sendMessage({
                         sender: 'asbplayer-video',
-                        message: {
-                            command: 'settings-updated',
-                        },
+                        message: { command: 'settings-updated' },
                         src: this._context.video.src,
-                    };
-                    browser.runtime.sendMessage(settingsUpdatedCommand);
+                    });
                     return;
                 }
 
@@ -426,12 +599,19 @@ export default class VideoDataSyncController {
                     return;
                 }
 
+                if (message.command === 'updateApiKey') {
+                    const msgAny = message as any;
+                    if (msgAny.apiKey !== undefined) {
+                        await this._context.settings.set({ apiKey: msgAny.apiKey });
+                        this.appendDebug(`Updated API Key`);
+                    }
+                    return;
+                }
+
                 let dataWasSynced = true;
 
                 if ('confirm' === message.command) {
                     const confirmMessage = message as VideoDataUiBridgeConfirmMessage;
-
-                    // Store the actual track IDs that were confirmed
                     this._lastConfirmedTrackIds = confirmMessage.data.map((track) => track.id || '-');
 
                     if (confirmMessage.shouldRememberTrackChoices) {
@@ -445,11 +625,37 @@ export default class VideoDataSyncController {
 
                     const data = confirmMessage.data as ConfirmedVideoDataSubtitleTrack[];
 
+                    if (this._isAnimeSite && this._currentAnimeTitle && data.length > 0) {
+                        const track = data.find((t) => t.id !== '-');
+                        if (track) {
+                            let provider = '';
+                            const bracketMatch = track.label.match(/^\[(.*?)]/);
+                            if (bracketMatch) {
+                                provider = bracketMatch[1];
+                            } else {
+                                const dashMatch = track.label.match(/^(.*?) -/);
+                                if (dashMatch) {
+                                    provider = dashMatch[1];
+                                }
+                            }
+
+                            if (!provider) {
+                                provider = track.label;
+                            }
+
+                            if (provider) {
+                                this.appendDebug(
+                                    `Manual Confirm: Saving provider "${provider}" for title "${this._currentAnimeTitle}"`
+                                );
+                                await this._saveShowProvider(this._currentAnimeTitle, provider);
+                            }
+                        }
+                    }
+
                     dataWasSynced = await this._syncDataArray(data, confirmMessage.syncWithAsbplayerId);
                 } else if ('openFile' === message.command) {
                     const openFileMessage = message as VideoDataUiBridgeOpenFileMessage;
                     const subtitles = openFileMessage.subtitles as SerializedSubtitleFile[];
-
                     try {
                         await this._syncSubtitles(subtitles, false);
                         dataWasSynced = true;
@@ -483,15 +689,7 @@ export default class VideoDataSyncController {
         const client = await this._client();
         await this.checkIfAnimeSite();
         const { title, episode } = await this.obtainTitleAndEpisode();
-
-        if (this._isAnimeSite && title && episode && !this._autoSyncAttempted) {
-            await this._handleSearch({
-                command: 'search',
-                title: title,
-                episode: parseInt(episode),
-            });
-            return;
-        }
+        this._currentAnimeTitle = title;
 
         client.updateState({
             isAnimeSite: this._isAnimeSite,
@@ -532,7 +730,6 @@ export default class VideoDataSyncController {
             if (typeof (this._activeElement as HTMLElement).focus === 'function') {
                 (this._activeElement as HTMLElement).focus();
             }
-
             this._activeElement = undefined;
         } else {
             window.focus();
@@ -548,7 +745,6 @@ export default class VideoDataSyncController {
     private async _syncData(data: VideoDataSubtitleTrack[]) {
         try {
             let subtitles: SerializedSubtitleFile[] = [];
-
             for (let i = 0; i < data.length; i++) {
                 const { extension, url, language, localFile } = data[i];
                 const subtitleFiles = await this._subtitlesForUrl(
@@ -562,7 +758,6 @@ export default class VideoDataSyncController {
                     subtitles.push(...subtitleFiles);
                 }
             }
-
             await this._syncSubtitles(
                 subtitles,
                 data.some((track) => typeof track.url === 'object')
@@ -572,7 +767,6 @@ export default class VideoDataSyncController {
             if (typeof (error as Error).message !== 'undefined') {
                 await this._reportError(`Data Sync failed: ${(error as Error).message}`);
             }
-
             return false;
         }
     }
@@ -580,7 +774,6 @@ export default class VideoDataSyncController {
     private async _syncDataArray(data: ConfirmedVideoDataSubtitleTrack[], syncWithAsbplayerId?: string) {
         try {
             let subtitles: SerializedSubtitleFile[] = [];
-
             for (let i = 0; i < data.length; i++) {
                 const { name, language, extension, url, localFile } = data[i];
                 const subtitleFiles = await this._subtitlesForUrl(name, language, extension, url, localFile);
@@ -588,7 +781,6 @@ export default class VideoDataSyncController {
                     subtitles.push(...subtitleFiles);
                 }
             }
-
             await this._syncSubtitles(
                 subtitles,
                 data.some((track) => typeof track.url === 'object'),
@@ -599,7 +791,6 @@ export default class VideoDataSyncController {
             if (typeof (error as Error).message !== 'undefined') {
                 await this._reportError(`Data Sync failed: ${(error as Error).message}`);
             }
-
             return false;
         }
     }
@@ -612,7 +803,46 @@ export default class VideoDataSyncController {
         const files: File[] = await Promise.all(
             serializedFiles.map(async (f) => new File([base64ToBlob(f.base64, 'text/plain')], f.name))
         );
+
+        let offsetToApply = 0;
+
+        if (this._isAnimeSite && this._currentAnimeTitle) {
+            // ENGAGE LOCK
+            this._ignoreOffsetsUntil = Date.now() + 4000;
+
+            const settings = await this._getShowSettings(this._currentAnimeTitle);
+            offsetToApply = settings?.offset ?? 0;
+            this.appendDebug(`Applying offset: ${offsetToApply}ms for "${this._currentAnimeTitle}" (Lock Active)`);
+
+            await this._context.settings.set({ lastSubtitleOffset: offsetToApply });
+        }
+
         this._context.loadSubtitles(files, flatten, syncWithAsbplayerId);
+
+        if (this._isAnimeSite && this._currentAnimeTitle) {
+            const offsetCommand: OffsetToVideoMessage = {
+                command: 'offset',
+                value: offsetToApply,
+                echo: false,
+            };
+
+            const extensionCommand: VideoToExtensionCommand<OffsetToVideoMessage> = {
+                sender: 'asbplayer-video',
+                message: offsetCommand,
+                src: this._context.video.src,
+            };
+
+            setTimeout(() => {
+                chrome.runtime.sendMessage(extensionCommand);
+            }, 500);
+            setTimeout(() => {
+                chrome.runtime.sendMessage(extensionCommand);
+            }, 1500);
+            setTimeout(() => {
+                chrome.runtime.sendMessage(extensionCommand);
+                this.appendDebug('Offset lock period ended.');
+            }, 4000);
+        }
     }
 
     private async _subtitlesForUrl(
@@ -636,21 +866,16 @@ export default class VideoDataSyncController {
                 await this._reportError('Unable to determine language');
                 return undefined;
             }
-
             const data = await fetchDataForLanguageOnDemand(language);
-
             if (data.error) {
                 await this._reportError(data.error);
                 return undefined;
             }
-
             const lazilyFetchedUrl = data.subtitles?.find((t) => t.language === language)?.url;
-
             if (lazilyFetchedUrl === undefined) {
                 await this._reportError('Failed to fetch subtitles for specified language');
                 return undefined;
             }
-
             url = lazilyFetchedUrl;
         }
 
@@ -666,11 +891,9 @@ export default class VideoDataSyncController {
             if (!response) {
                 return undefined;
             }
-
             if (!response.ok) {
                 throw new Error(`Subtitle Retrieval failed with Status ${response.status}/${response.statusText}...`);
             }
-
             return [
                 {
                     name: `${name}.${extension}`,
@@ -678,8 +901,6 @@ export default class VideoDataSyncController {
                 },
             ];
         }
-
-        // `url` is an array
 
         const firstUri = url[0];
         const partExtension = firstUri.substring(firstUri.lastIndexOf('.') + 1);
@@ -691,31 +912,25 @@ export default class VideoDataSyncController {
 
         for (const p of promises) {
             const response = await p;
-
             if (!response.ok) {
                 throw new Error(`Subtitle Retrieval failed with Status ${response.status}/${response.statusText}...`);
             }
-
             ++finishedPromises;
             this._context.subtitleController.notification(
                 `${fileName} (${Math.floor((finishedPromises / totalPromises) * 100)}%)`
             );
-
             tracks.push({
                 name: fileName,
                 base64: bufferToBase64(await response.arrayBuffer()),
             });
         }
-
         return tracks;
     }
 
     private async _reportError(error: string) {
         const client = await this._client();
         const themeType = await this._context.settings.getSingle('themeType');
-
         this._prepareShow();
-
         return client.updateState({
             open: true,
             isLoading: false,
@@ -757,24 +972,28 @@ export default class VideoDataSyncController {
                 .filter((sub) => sub.url && sub.label);
 
             const { title } = await this.obtainTitleAndEpisode();
+            this._currentAnimeTitle = title;
 
-            // Only store fetched subtitles, no empty tracks
             this._syncedData = {
                 ...this._syncedData,
                 subtitles: fetchedSubtitles,
+                basename: title,
             } as VideoData;
 
-            // Only auto-load subtitles and hide the dialog if triggered by page load
             if (fetchedSubtitles.length > 0 && this._autoSync && !this._pageLoadSynced) {
-                this._pageLoadSynced = true;
-                await this._syncData([fetchedSubtitles[0]]);
-                client.updateState({ open: false });
-                this._hideAndResume();
-                return;
+                const match = await this._matchLastSyncedWithAvailableTracks();
+
+                if (match.completeMatch) {
+                    this._pageLoadSynced = true;
+                    await this._syncData(match.autoSelectedTracks);
+                    client.updateState({ open: false });
+                    this._hideAndResume();
+                    return;
+                }
             }
 
             client.updateState({
-                subtitles: fetchedSubtitles, // Use fetchedSubtitles directly
+                subtitles: fetchedSubtitles,
                 isLoading: false,
                 episode: message.episode,
                 open: true,
@@ -782,7 +1001,6 @@ export default class VideoDataSyncController {
                 selectedSubtitle: fetchedSubtitles.length > 0 ? [`fetched-0`, '-', '-'] : ['-', '-', '-'],
             });
         } catch (error) {
-            // Keep dialog open when showing error
             client.updateState({
                 error: error instanceof Error ? error.message : 'An error occurred while fetching subtitles',
                 episode: message.episode || '',
@@ -796,7 +1014,6 @@ export default class VideoDataSyncController {
         return new Promise((resolve) => {
             chrome.runtime.sendMessage({ command: 'check-if-anime-site' }, (response) => {
                 this._isAnimeSite = response.isAnimeSite;
-
                 resolve();
             });
         });
@@ -812,5 +1029,27 @@ export default class VideoDataSyncController {
                 }
             });
         });
+    }
+
+    // --- Storage Helpers ---
+
+    private async _getShowSettings(title: string): Promise<ShowSettings | undefined> {
+        const key = `show_settings_${title}`;
+        const data = await browser.storage.local.get(key);
+        return data[key];
+    }
+
+    private async _saveShowProvider(title: string, providerPattern: string) {
+        const key = `show_settings_${title}`;
+        const current = (await this._getShowSettings(title)) || {};
+        current.providerPattern = providerPattern;
+        await browser.storage.local.set({ [key]: current });
+    }
+
+    private async _saveShowOffset(title: string, offset: number) {
+        const key = `show_settings_${title}`;
+        const current = (await this._getShowSettings(title)) || {};
+        current.offset = offset;
+        await browser.storage.local.set({ [key]: current });
     }
 }
