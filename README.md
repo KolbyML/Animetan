@@ -13,14 +13,15 @@
 Automate your language learning workflow by synchronizing subtitles with your favorite streaming video players. Set your preferences once, and the extension handles the rest.
 Set up your subtitle provider and offset once at the start of each season, and have it automatically apply to all episodes of that show! Switch shows, and the extension remembers your settings for each series.
 
-## Extension Installation
+Discord Server: https://discord.gg/tDAtpPN8KK
 
-🦊 Firefox Addon:
+## Extension Installation via Browser Store
 
-🌐 Chrome extension:
+🦊 Firefox Addon: **Coming soon**
 
-<details>
-<summary>Instructions for installing via the assets </summary>
+🌐 Chrome extension: **Coming soon**
+
+## Extension Installation via Manual Download
 
 1. Go to the [Releases](https://github.com/kolbyml/Animetan/releases) page
 2. Find the latest release
@@ -37,8 +38,6 @@ Set up your subtitle provider and offset once at the start of each season, and h
         - Go to `about:addons`
         - Click the gear icon and select "Install Add-on From File..."
         - Select the downloaded `.zip` file (do not extract it)
-
- </details>
 
 ## Usage
 
