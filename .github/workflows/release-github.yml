@@ -53,6 +53,29 @@ jobs:
                   git push origin HEAD:main --follow-tags
 
             # ---------------------------------------------------------
+            # NEW: Generate Changelog from Git History
+            # ---------------------------------------------------------
+            - name: Generate Release Notes
+              run: |
+                  # Find the previous tag (excluding the one we just created)
+                  PREV_TAG=$(git tag --sort=-creatordate | grep -v "${{ env.NEW_TAG }}" | head -n 1)
+
+                  echo "Generating changelog from $PREV_TAG to ${{ env.NEW_TAG }}"
+
+                  if [ -z "$PREV_TAG" ]; then
+                      # If no previous tag, show all history
+                      CHANGELOG=$(git log --pretty=format:"* %s (%h)")
+                  else
+                      # Show commits between previous tag and current HEAD
+                      CHANGELOG=$(git log $PREV_TAG..HEAD --pretty=format:"* %s (%h)")
+                  fi
+
+                  # Save to environment variable (multiline safe)
+                  echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+                  echo "$CHANGELOG" >> $GITHUB_ENV
+                  echo "EOF" >> $GITHUB_ENV
+
+            # ---------------------------------------------------------
             # 1. Build Chrome (Unsigned ZIP for Web Store / Manual load)
             # ---------------------------------------------------------
             - name: Build Chrome Extension
@@ -72,7 +95,7 @@ jobs:
                     --firefox-sources-zip .output/*-sources.zip \
                     --firefox-channel unlisted
               env:
-                  # Desktop ID from your release-firefox-build.yml
+                  # Desktop ID
                   FIREFOX_EXTENSION_ID: 05d106c7-dd78-4be1-853c-619c21685643
                   FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
                   FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
@@ -91,13 +114,13 @@ jobs:
                     --firefox-sources-zip .output/*-sources.zip \
                     --firefox-channel unlisted
               env:
-                  # Android ID from your release-firefox-android-build.yml
+                  # Android ID
                   FIREFOX_EXTENSION_ID: 0934e72b-2356-4efd-b564-41253e196796
                   FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
                   FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
 
             # ---------------------------------------------------------
-            # 4. Create Release
+            # 4. Create Release (With Changelog)
             # ---------------------------------------------------------
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
@@ -106,7 +129,10 @@ jobs:
                   name: Release ${{ env.NEW_TAG }}
                   draft: false
                   prerelease: false
-                  generate_release_notes: true
+                  # We inject the generated changelog here
+                  body: |
+                      ## Changes in ${{ env.NEW_TAG }}
+                      ${{ env.CHANGELOG }}
                   files: |
                       extension/.output/*.zip
                       extension/.output/*.xpi

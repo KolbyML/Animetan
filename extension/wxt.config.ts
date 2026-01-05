@@ -188,7 +188,10 @@ export default defineConfig({
                 browser_specific_settings: {
                     gecko: {
                         id: '{0934e72b-2356-4efd-b564-41253e196796}',
-                    },
+                        data_collection_permissions: {
+                            required: ['none'],
+                        },
+                    } as any,
                     gecko_android: {},
                 },
             };
