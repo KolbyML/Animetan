@@ -24,6 +24,8 @@ Discord Server: https://discord.gg/tDAtpPN8KK
 
 ## Extension Installation via Manual Download
 
+> **⚠️ Note:** Vivaldi browser is currently not supported.
+
 1. Go to the [Releases](https://github.com/kolbyml/Animetan/releases) page
 2. Find the latest release
 3. Under "Assets", download the appropriate file:
