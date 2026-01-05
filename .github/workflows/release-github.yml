@@ -149,7 +149,7 @@ jobs:
                     --arg url "$RELEASE_URL" \
                     --arg body "${{ env.CHANGELOG }}" \
                     '{
-                      content: ("🚀 **New Update Released: " + $tag + "**\nDownload here: " + $url),
+                      content: ("🚀 **Animetan New Update Released: " + $tag + "**\nDownload here: " + $url),
                       embeds: [{
                         title: "Changelog",
                         description: ($body | if length > 4000 then .[0:3997] + "..." else . end),
