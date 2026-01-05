@@ -1,9 +1,9 @@
 name: Sync with upstream repository
 
 on:
-    schedule:
-        # Run this workflow daily at midnight
-        - cron: '0 0 * * *'
+    # schedule:
+    #     # Run this workflow daily at midnight
+    #     - cron: '0 0 * * *'
     workflow_dispatch: # Allow manual triggering
 
 jobs:
