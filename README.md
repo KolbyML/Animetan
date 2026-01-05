@@ -1,4 +1,5 @@
 # Animetan - ASBPlayer + Automatic Anime Subtitles + Saved Offsets per show
+
 <div align="center">
 
 [![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/kolbyml/animetan/verify.yml)](https://github.com/kolbyml/animetan/actions/workflows/verify.yml)

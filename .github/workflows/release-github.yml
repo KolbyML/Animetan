@@ -50,11 +50,11 @@ jobs:
                   # Bump version in package.json and create a git tag
                   # The -m flag creates a commit message skipping CI to prevent loops
                   npm version ${{ inputs.bump_type }} -m "Bump version to %s [skip ci]"
-                  
+
                   # Extract the new tag (e.g., v1.0.5) to use in the release step
                   NEW_TAG=$(git describe --abbrev=0 --tags)
                   echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
-                  
+
                   # Push the commit (package.json update) and the new tag
                   git push origin HEAD:main --follow-tags
 
@@ -74,4 +74,3 @@ jobs:
                   generate_release_notes: true
                   files: |
                       extension/.output/*.zip
-

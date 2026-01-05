@@ -3,6 +3,10 @@ import type { ResolvedPublicFile, UserManifest, Wxt } from 'wxt';
 import fs from 'node:fs';
 import path from 'node:path';
 
+const rootPackageJson = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8')
+);
+
 const commonAssets = [
     { srcDir: path.resolve(__dirname, '../common/locales'), destDir: 'asbplayer-locales' },
     { srcDir: path.resolve(__dirname, '../common/assets'), destDir: 'assets' },
@@ -25,7 +29,6 @@ const addToPublicPathsType = (srcPath: string, destPath: string, paths: string[]
     }
 };
 
-// See https://wxt.dev/api/config.html
 export default defineConfig({
     webExt: {
         chromiumArgs: ['--user-data-dir=./.wxt/chrome-data'],
@@ -52,7 +55,7 @@ export default defineConfig({
         let manifest: UserManifest = {
             name: 'Animetan: Asbplayer with automation',
             description: 'Animetan: Asbplayer with automation',
-            version: '1.0.4',
+            version: rootPackageJson.version, 
             action: { default_title: 'asbplayer' },
             default_locale: 'en',
             icons: {
@@ -60,6 +63,7 @@ export default defineConfig({
                 '48': 'icon/icon48.png',
                 '128': 'icon/icon128.png',
             },
+            // ... rest of your manifest config ...
             web_accessible_resources: [
                 {
                     resources: [
@@ -99,7 +103,8 @@ export default defineConfig({
                 },
             ],
         };
-
+        
+        // ... commands ...
         let commands: Browser.runtime.Manifest['commands'] = {
             'copy-subtitle': {
                 description: '__MSG_shortcutMineSubtitleDescription__',
@@ -143,10 +148,6 @@ export default defineConfig({
         if (mode === 'development') {
             commands['wxt:reload-extension'] = {
                 description: 'Reload the extension during development',
-                // Normally there is a suggested key for this, but Chrome only supports up to 4 suggested keys.
-                // suggested_key: {
-                //     default: 'Alt+R',
-                // },
             };
         }
 
