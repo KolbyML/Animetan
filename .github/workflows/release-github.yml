@@ -17,13 +17,13 @@ jobs:
     release:
         runs-on: ubuntu-latest
         permissions:
-            contents: write # Required to push the new tag and create the release
+            contents: write # Required to push tags and create releases
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
               with:
-                  fetch-depth: 0 # Required to see existing tags
-                  token: ${{ secrets.GITHUB_TOKEN }}
+                  fetch-depth: 0
+                  token: ${{ secrets.PAT }} # Uses your Personal Access Token
 
             - name: Setup Node
               uses: actions/setup-node@v3
@@ -47,23 +47,58 @@ jobs:
             - name: Bump Version & Push Tag
               id: bump_version
               run: |
-                  # Bump version in package.json and create a git tag
-                  # The -m flag creates a commit message skipping CI to prevent loops
                   npm version ${{ inputs.bump_type }} -m "Bump version to %s [skip ci]"
-
-                  # Extract the new tag (e.g., v1.0.5) to use in the release step
                   NEW_TAG=$(git describe --abbrev=0 --tags)
                   echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
-
-                  # Push the commit (package.json update) and the new tag
                   git push origin HEAD:main --follow-tags
 
+            # ---------------------------------------------------------
+            # 1. Build Chrome (Unsigned ZIP for Web Store / Manual load)
+            # ---------------------------------------------------------
             - name: Build Chrome Extension
               run: yarn workspace @project/extension run zip
 
-            - name: Build Firefox Extension
+            # ---------------------------------------------------------
+            # 2. Build & Sign Firefox Desktop
+            # ---------------------------------------------------------
+            - name: Build Firefox Desktop
               run: yarn workspace @project/extension run zip:firefox
 
+            - name: Sign Firefox Desktop
+              working-directory: ./extension
+              run: |
+                  yarn run wxt submit \
+                    --firefox-zip .output/*-firefox.zip \
+                    --firefox-sources-zip .output/*-sources.zip \
+                    --firefox-channel unlisted
+              env:
+                  # Desktop ID from your release-firefox-build.yml
+                  FIREFOX_EXTENSION_ID: 05d106c7-dd78-4be1-853c-619c21685643
+                  FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+                  FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+
+            # ---------------------------------------------------------
+            # 3. Build & Sign Firefox Android
+            # ---------------------------------------------------------
+            - name: Build Firefox Android
+              run: yarn workspace @project/extension run zip:firefox-android
+
+            - name: Sign Firefox Android
+              working-directory: ./extension
+              run: |
+                  yarn run wxt submit \
+                    --firefox-zip .output/*-firefox-android.zip \
+                    --firefox-sources-zip .output/*-sources.zip \
+                    --firefox-channel unlisted
+              env:
+                  # Android ID from your release-firefox-android-build.yml
+                  FIREFOX_EXTENSION_ID: 0934e72b-2356-4efd-b564-41253e196796
+                  FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+                  FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+
+            # ---------------------------------------------------------
+            # 4. Create Release
+            # ---------------------------------------------------------
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
@@ -74,3 +109,4 @@ jobs:
                   generate_release_notes: true
                   files: |
                       extension/.output/*.zip
+                      extension/.output/*.xpi

@@ -3,9 +3,7 @@ import type { ResolvedPublicFile, UserManifest, Wxt } from 'wxt';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const rootPackageJson = JSON.parse(
-    fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8')
-);
+const rootPackageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8'));
 
 const commonAssets = [
     { srcDir: path.resolve(__dirname, '../common/locales'), destDir: 'asbplayer-locales' },
@@ -55,7 +53,7 @@ export default defineConfig({
         let manifest: UserManifest = {
             name: 'Animetan: Asbplayer with automation',
             description: 'Animetan: Asbplayer with automation',
-            version: rootPackageJson.version, 
+            version: rootPackageJson.version,
             action: { default_title: 'asbplayer' },
             default_locale: 'en',
             icons: {
@@ -103,7 +101,7 @@ export default defineConfig({
                 },
             ],
         };
-        
+
         // ... commands ...
         let commands: Browser.runtime.Manifest['commands'] = {
             'copy-subtitle': {
@@ -188,7 +186,9 @@ export default defineConfig({
                 ...manifest,
                 host_permissions: ['<all_urls>'],
                 browser_specific_settings: {
-                    gecko: {},
+                    gecko: {
+                        id: '{0934e72b-2356-4efd-b564-41253e196796}',
+                    },
                     gecko_android: {},
                 },
             };
