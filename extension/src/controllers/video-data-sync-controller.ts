@@ -531,7 +531,7 @@ export default class VideoDataSyncController {
                         this._hideAndResume();
                     }
                 } else if (isAnimeSite && hasAvailableSubtitles) {
-                    await this.show({ reason: VideoDataUiOpenReason.failedToAutoLoadPreferredTrack });
+                    await this._attemptSilentAutoSync(this._currentAnimeTitle, parseInt(String(this._episode)));
                 } else {
                     const shouldPrompt = await this._settings.getSingle('streamingAutoSyncPromptOnFailure');
                     if (shouldPrompt) {
@@ -562,6 +562,33 @@ export default class VideoDataSyncController {
 
     private async _pageHidesTrackPrefToggle() {
         return (await currentPageDelegate())?.config?.hideRememberTrackPreferenceToggle ?? false;
+    }
+
+    private _extractProviderPattern(filename: string): string {
+        // 1. Look for [Group] at the start (e.g., "[VCB-Studio] ...")
+        const bracketMatch = filename.match(/^\[(.*?)]/);
+        if (bracketMatch) return bracketMatch[1];
+
+        // 2. Look for Scene format: "Show.Name.S01E01..."
+        // Captures "Show.Name" before the SxxExx part.
+        const sceneMatch = filename.match(/^(.*?)\.S\d+E\d+\./i);
+        if (sceneMatch) return sceneMatch[1];
+
+        // 3. Look for " - " separator (e.g., "Show Name - 01")
+        const dashMatch = filename.match(/^(.*?) -/);
+        if (dashMatch) return dashMatch[1];
+
+        // 4. Look for "Show [01]" pattern
+        const bracketEpMatch = filename.match(/^(.*?) \[\d+\]/);
+        if (bracketEpMatch) return bracketEpMatch[1];
+
+        // 5. Generic "Show 01" pattern
+        // Be careful not to cut off too much. Match whitespace followed by digit, then dot or end.
+        const spaceEpMatch = filename.match(/^(.*?) \d+(\.|$)/);
+        if (spaceEpMatch) return spaceEpMatch[1];
+
+        // Fallback: Use the whole filename if no pattern found (unsafe but necessary fallback)
+        return filename;
     }
 
     private async _client() {
@@ -628,21 +655,7 @@ export default class VideoDataSyncController {
                     if (this._isAnimeSite && this._currentAnimeTitle && data.length > 0) {
                         const track = data.find((t) => t.id !== '-');
                         if (track) {
-                            let provider = '';
-                            const bracketMatch = track.label.match(/^\[(.*?)]/);
-                            if (bracketMatch) {
-                                provider = bracketMatch[1];
-                            } else {
-                                const dashMatch = track.label.match(/^(.*?) -/);
-                                if (dashMatch) {
-                                    provider = dashMatch[1];
-                                }
-                            }
-
-                            if (!provider) {
-                                provider = track.label;
-                            }
-
+                            const provider = this._extractProviderPattern(track.label);
                             if (provider) {
                                 this.appendDebug(
                                     `Manual Confirm: Saving provider "${provider}" for title "${this._currentAnimeTitle}"`
