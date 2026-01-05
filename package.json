@@ -25,5 +25,5 @@
     "resolutions": {
         "lamejs@1.2.0": "patch:lamejs@npm:1.2.0#.yarn/patches/lamejs-npm-1.2.0-b0315d05aa.patch"
     },
-    "version": "0.1.1"
+    "version": "0.2.0"
 }
