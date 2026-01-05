@@ -18,13 +18,12 @@ import type { Profile } from '@project/common/settings';
 import Alert from '@mui/material/Alert';
 import Link from '@mui/material/Link';
 import { type ButtonBaseActions } from '@mui/material';
-import { Theme } from '@mui/material/styles'; // Added import
+import { Theme } from '@mui/material/styles';
 import { ConfirmedVideoDataSubtitleTrack, VideoDataSubtitleTrack, VideoDataUiOpenReason } from '@project/common';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 const createClasses = makeStyles((theme: Theme) => ({
-    // Added type
     relative: {
         position: 'relative',
     },
@@ -48,6 +47,10 @@ const createClasses = makeStyles((theme: Theme) => ({
         whiteSpace: 'pre-wrap',
         fontFamily: 'monospace',
         border: `1px solid ${theme.palette.divider}`,
+    },
+    dialogPaper: {
+        height: 800,
+        maxHeight: '90%',
     },
 }));
 
@@ -126,6 +129,9 @@ export default function VideoDataSyncDialog({
     const [localEpisode, setLocalEpisode] = useState(initialEpisode);
     const [localApiKey, setLocalApiKey] = useState(apiKey || '');
     const [apiKeyError, setApiKeyError] = useState(false);
+    const [subtitleSelectionError, setSubtitleSelectionError] = useState(false);
+    const errorRef = useRef<HTMLDivElement>(null);
+    const apiKeyRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (open) {
@@ -135,6 +141,7 @@ export default function VideoDataSyncDialog({
                 })
             );
             setApiKeyError(false);
+            setSubtitleSelectionError(false);
         } else if (!open) {
             setName('');
         }
@@ -179,11 +186,39 @@ export default function VideoDataSyncDialog({
         });
     }, [suggestedName, userSelectedSubtitleTrackIds, subtitleTracks, initialEpisode, localEpisode]);
 
+    // Scroll to subtitle error when state changes
+    useEffect(() => {
+        if (subtitleSelectionError && errorRef.current) {
+            errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [subtitleSelectionError]);
+
+    // Scroll to API key error when state changes
+    useEffect(() => {
+        if (apiKeyError && apiKeyRef.current) {
+            apiKeyRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, [apiKeyError]);
+
     function handleOkButtonClick() {
         if (isAnimeSite && !localApiKey) {
             setApiKeyError(true);
+            // Manually scroll if error is already present (useEffect won't fire)
+            if (apiKeyError && apiKeyRef.current) {
+                apiKeyRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
             return;
         }
+
+        if (userSelectedSubtitleTrackIds[0] === '-') {
+            setSubtitleSelectionError(true);
+            // Manually scroll if error is already present (useEffect won't fire)
+            if (subtitleSelectionError && errorRef.current) {
+                errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
+
         const selectedSubtitleTracks: ConfirmedVideoDataSubtitleTrack[] = allSelectedSubtitleTracks();
         onConfirm(selectedSubtitleTracks, true);
     }
@@ -232,6 +267,7 @@ export default function VideoDataSyncDialog({
                                 setUserSelectedSubtitleTrackIds((prevSelectedSubtitles) => {
                                     const newSelectedSubtitles = [...prevSelectedSubtitles];
                                     newSelectedSubtitles[i] = e.target.value;
+                                    setSubtitleSelectionError(false);
                                     return newSelectedSubtitles;
                                 })
                             }
@@ -283,11 +319,20 @@ export default function VideoDataSyncDialog({
             setApiKeyError(true);
             return;
         }
+        setSubtitleSelectionError(false);
         onSearch(name, localEpisode);
     };
 
     return (
-        <Dialog disableRestoreFocus disableEnforceFocus fullWidth maxWidth="sm" open={open} onClose={onCancel}>
+        <Dialog
+            disableRestoreFocus
+            disableEnforceFocus
+            fullWidth
+            maxWidth="sm"
+            open={open}
+            onClose={onCancel}
+            classes={{ paper: classes.dialogPaper }}
+        >
             <Toolbar>
                 <Typography variant="h6" style={{ flexGrow: 1 }}>
                     {t('extension.videoDataSync.selectSubtitles')}
@@ -321,20 +366,6 @@ export default function VideoDataSyncDialog({
                 )}
                 <form>
                     <Grid container direction="column" spacing={2}>
-                        {!hasSeenFtue && (
-                            <Grid item>
-                                <Alert
-                                    severity="info"
-                                    action={
-                                        <Button onClick={onDismissFtue} size="small">
-                                            {t('action.ok')}
-                                        </Button>
-                                    }
-                                >
-                                    {t('extension.videoDataSync.ftue')}
-                                </Alert>
-                            </Grid>
-                        )}
                         <Grid item>
                             <TextField
                                 ref={videoNameRef}
@@ -350,7 +381,7 @@ export default function VideoDataSyncDialog({
                         </Grid>
                         {isAnimeSite && (
                             <>
-                                <Grid item>
+                                <Grid item ref={apiKeyRef}>
                                     <TextField
                                         fullWidth
                                         label="Jimaku API Key"
@@ -409,6 +440,16 @@ export default function VideoDataSyncDialog({
                             </>
                         )}
                         {singleSubtitleTrackSelector}
+
+                        {subtitleSelectionError && (
+                            <Grid item ref={errorRef}>
+                                <Alert severity="warning">
+                                    {isAnimeSite
+                                        ? "No subtitle selected. Please click 'Search' to find subtitles."
+                                        : 'Please select a subtitle track.'}
+                                </Alert>
+                            </Grid>
+                        )}
 
                         {isAnimeSite && (
                             <Grid item>
