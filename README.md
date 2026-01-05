@@ -1,4 +1,14 @@
 # Animetan - ASBPlayer + Automatic Anime Subtitles + Saved Offsets per show
+<div align="center">
+
+[![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/kolbyml/animetan/verify.yml)](https://github.com/kolbyml/animetan/actions/workflows/verify.yml)
+[![Github All Releases](https://img.shields.io/github/downloads/kolbyml/animetan/total.svg)](https://github.com/kolbyml/animetan/releases)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/kolbyml)](https://github.com/sponsors/kolbyml)
+[![Static Badge](https://img.shields.io/badge/donate-ko--fi-ed6760?label=donate)](https://ko-fi.com/kolbyml)
+[![GitHub License](https://img.shields.io/github/license/kolbyml/animetan)](https://github.com/kolbyml/animetan?tab=MIT-1-ov-file)
+[![Discord](https://img.shields.io/discord/1448140648950530182?color=%237785cc)](https://discord.gg/tDAtpPN8KK)
+
+</div>
 
 Automate your language learning workflow by synchronizing subtitles with your favorite streaming video players. Set your preferences once, and the extension handles the rest.
 Set up your subtitle provider and offset once at the start of each season, and have it automatically apply to all episodes of that show! Switch shows, and the extension remembers your settings for each series.
