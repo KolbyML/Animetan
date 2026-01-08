@@ -25,7 +25,7 @@ import i18n from 'i18next';
 import { ExtensionGlobalStateProvider } from '@/services/extension-global-state-provider';
 import { isOnTutorialPage } from '@/services/tutorial';
 import { fetchAnilistInfo } from '../services/anilist';
-import { fetchSubtitles } from '../services/subtitle';
+import { fetchSubtitles, parseEpisodeNumber } from '../services/subtitle';
 
 declare global {
     function cloneInto(obj: any, targetScope: any, options?: any): any;
@@ -119,7 +119,6 @@ export default class VideoDataSyncController {
         this._pageLoadSynced = false;
         this._isAnimeSite = false;
 
-        // Initialize: Check site type and attempt silent auto-load
         this.init();
 
         this._messageListener = async (request, sender, sendResponse) => {
@@ -217,10 +216,7 @@ export default class VideoDataSyncController {
             });
 
             this.appendDebug(`AutoSync: Fetched ${fetchedSubtitles.length} tracks.`);
-            if (fetchedSubtitles.length > 0) {
-                this.appendDebug(`AutoSync: First track: "${fetchedSubtitles[0].label}"`);
-            }
-
+            
             this._syncedData = {
                 subtitles: fetchedSubtitles,
                 basename: title,
@@ -230,11 +226,13 @@ export default class VideoDataSyncController {
 
             let matchedTrack: VideoDataSubtitleTrack | undefined;
             if (showSettings?.providerPattern) {
-                matchedTrack = fetchedSubtitles.find((t) =>
-                    t.label.toLowerCase().includes(showSettings.providerPattern!.toLowerCase())
-                );
+                const pattern = showSettings.providerPattern;
+                const regex = new RegExp(pattern);
+                
+                matchedTrack = fetchedSubtitles.find((t) => regex.test(t.label));
+
                 this.appendDebug(
-                    `AutoSync: Match attempt with "${showSettings.providerPattern}" -> ${matchedTrack ? 'FOUND' : 'NOT FOUND'}`
+                    `AutoSync: Match attempt with "${pattern}" -> ${matchedTrack ? 'FOUND' : 'NOT FOUND'}`
                 );
             } else {
                 this.appendDebug('AutoSync: No provider pattern set.');
@@ -282,9 +280,7 @@ export default class VideoDataSyncController {
             this._offsetEventListener = undefined;
         }
 
-        // IMPORTANT: Cleanup the UI frame to prevent ghost iframes blocking clicks on SPA navigation
         this._frame.unbind();
-
         this._dataReceivedListener = undefined;
         this._syncedData = undefined;
     }
@@ -457,13 +453,16 @@ export default class VideoDataSyncController {
         if (this._isAnimeSite && this._currentAnimeTitle) {
             const settings = await this._getShowSettings(this._currentAnimeTitle);
             if (settings?.providerPattern) {
-                const preferredTrack = subtitleTrackChoices.find((t) =>
-                    t.label.toLowerCase().includes(settings.providerPattern!.toLowerCase())
-                );
-                if (preferredTrack) {
-                    tracks.autoSelectedTracks[0] = preferredTrack;
-                    tracks.completeMatch = true;
-                    return tracks;
+                try {
+                    const regex = new RegExp(settings.providerPattern);
+                    const preferredTrack = subtitleTrackChoices.find((t) => regex.test(t.label));
+                    if (preferredTrack) {
+                        tracks.autoSelectedTracks[0] = preferredTrack;
+                        tracks.completeMatch = true;
+                        return tracks;
+                    }
+                } catch (e) {
+                    console.error("Invalid saved provider regex", e);
                 }
             }
         }
@@ -564,31 +563,102 @@ export default class VideoDataSyncController {
         return (await currentPageDelegate())?.config?.hideRememberTrackPreferenceToggle ?? false;
     }
 
+    /**
+     * Helper to append a wildcard .*? between the episode number and a known release tag.
+     */
+    private _addWildcardForVariableTitles(pattern: string): string {
+        const anchor = '\\d+';
+        const anchorIndex = pattern.indexOf(anchor);
+        
+        if (anchorIndex === -1) return `^${pattern}$`;
+
+        const tags = ['WEBRip', 'WEB-DL', 'BluRay', '1080p', '720p', 'x264', 'AAC', 'Amazon', 'Netflix', 'Hi10p'];
+        const afterAnchor = pattern.substring(anchorIndex + anchor.length);
+        
+        let bestTagIndex = -1;
+        
+        for (const tag of tags) {
+            // Match escaped delimiters (\. or \[) followed by the tag
+            const tagRegex = new RegExp(`(\\\\\\\.|\\s|\\\\\\\[)${tag}`, 'i');
+            const m = afterAnchor.match(tagRegex);
+            if (m && m.index !== undefined) {
+                if (bestTagIndex === -1 || m.index < bestTagIndex) {
+                    bestTagIndex = m.index;
+                }
+            }
+        }
+        
+        if (bestTagIndex !== -1) {
+             const prefix = pattern.substring(0, anchorIndex + anchor.length);
+             const suffix = afterAnchor.substring(bestTagIndex); 
+             return `^${prefix}.*?${suffix}$`;
+        }
+        
+        return `^${pattern}$`;
+    }
+
+    /**
+     * Generates a Regex pattern from a filename that identifies the "Provider" 
+     * while genericizing the episode number.
+     */
     private _extractProviderPattern(filename: string): string {
-        // 1. Look for [Group] at the start (e.g., "[VCB-Studio] ...")
-        const bracketMatch = filename.match(/^\[(.*?)]/);
-        if (bracketMatch) return bracketMatch[1];
+        const epNum = parseEpisodeNumber(filename);
+        let currentPattern = filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        // 2. Look for Scene format: "Show.Name.S01E01..."
-        // Captures "Show.Name" before the SxxExx part.
-        const sceneMatch = filename.match(/^(.*?)\.S\d+E\d+\./i);
-        if (sceneMatch) return sceneMatch[1];
+        if (epNum === null) return `^${currentPattern}$`;
 
-        // 3. Look for " - " separator (e.g., "Show Name - 01")
-        const dashMatch = filename.match(/^(.*?) -/);
-        if (dashMatch) return dashMatch[1];
+        let replaced = false;
 
-        // 4. Look for "Show [01]" pattern
-        const bracketEpMatch = filename.match(/^(.*?) \[\d+\]/);
-        if (bracketEpMatch) return bracketEpMatch[1];
+        // 1. Japanese Format (e.g. 第208話 -> 第\d+話)
+        const jpMatches = [...filename.matchAll(/第(\d+)話/g)];
+        for (const match of jpMatches) {
+             const fullMatchStr = match[0];
+             const escapedMatchStr = fullMatchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+             const genericMatchStr = escapedMatchStr.replace(/\d+/, '\\d+');
+             
+             if (currentPattern.includes(escapedMatchStr)) {
+                 currentPattern = currentPattern.replace(escapedMatchStr, genericMatchStr);
+                 replaced = true;
+             }
+        }
 
-        // 5. Generic "Show 01" pattern
-        // Be careful not to cut off too much. Match whitespace followed by digit, then dot or end.
-        const spaceEpMatch = filename.match(/^(.*?) \d+(\.|$)/);
-        if (spaceEpMatch) return spaceEpMatch[1];
+        // 2. Standard SxxExx (e.g. S02E078 -> S\d+E\d+)
+        const sxxMatches = [...filename.matchAll(/S\d+E(\d+)/ig)];
+        for (const match of sxxMatches) {
+             const fullMatchStr = match[0];
+             const escapedMatchStr = fullMatchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+             const genericMatchStr = escapedMatchStr.replace(/\d+/g, '\\d+');
+             
+             if (currentPattern.includes(escapedMatchStr)) {
+                 currentPattern = currentPattern.replace(escapedMatchStr, genericMatchStr);
+                 replaced = true;
+             }
+        }
+        
+        // 3. Loose Matches (e.g. [07] or - 07) using index-based context
+        const looseMatches = [...filename.matchAll(/(?:^|[\s_\-\.\[])(\d{1,4})(?:v\d)?(?:[\s_\-\.\]]|$)/g)];
+        for (const match of looseMatches) {
+            const val = parseInt(match[1], 10);
+            if (val === 720 || val === 1080 || val === 2160 || val === 264 || val === 265) continue;
 
-        // Fallback: Use the whole filename if no pattern found (unsafe but necessary fallback)
-        return filename;
+            if (val === epNum) {
+                 const numberStr = match[1];
+                 const fullContext = match[0];
+                 const escapedContext = fullContext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                 const genericContext = escapedContext.replace(numberStr, '\\d+');
+                 
+                 if (currentPattern.includes(escapedContext)) {
+                     currentPattern = currentPattern.replace(escapedContext, genericContext);
+                     replaced = true;
+                 }
+            }
+        }
+
+        if (replaced) {
+            return this._addWildcardForVariableTitles(currentPattern);
+        }
+
+        return `^${currentPattern}$`;
     }
 
     private async _client() {
@@ -820,7 +890,6 @@ export default class VideoDataSyncController {
         let offsetToApply = 0;
 
         if (this._isAnimeSite && this._currentAnimeTitle) {
-            // ENGAGE LOCK
             this._ignoreOffsetsUntil = Date.now() + 4000;
 
             const settings = await this._getShowSettings(this._currentAnimeTitle);
@@ -1017,6 +1086,7 @@ export default class VideoDataSyncController {
             client.updateState({
                 error: error instanceof Error ? error.message : 'An error occurred while fetching subtitles',
                 episode: message.episode || '',
+                subtitles: [],
                 isLoading: false,
                 open: true,
             });
