@@ -59,15 +59,15 @@ jobs:
               run: |
                   # Find the previous tag (excluding the one we just created)
                   PREV_TAG=$(git tag --sort=-creatordate | grep -v "${{ env.NEW_TAG }}" | head -n 1)
-                  
+
                   echo "Generating changelog from $PREV_TAG to ${{ env.NEW_TAG }}"
-                  
+
                   if [ -z "$PREV_TAG" ]; then
                       CHANGELOG=$(git log --pretty=format:"* %s (%h)")
                   else
                       CHANGELOG=$(git log $PREV_TAG..HEAD --pretty=format:"* %s (%h)")
                   fi
-                  
+
                   # Save to environment variable (multiline safe)
                   echo "CHANGELOG<<EOF" >> $GITHUB_ENV
                   echo "$CHANGELOG" >> $GITHUB_ENV

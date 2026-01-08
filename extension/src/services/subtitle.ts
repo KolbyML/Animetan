@@ -6,7 +6,7 @@ interface Subs {
 const UNSUPPORTED_SUBTITLE_EXTENSIONS = ['.zip', '.7z', '.rar'];
 
 /**
- * Shared episode parsing logic used for both filtering API results 
+ * Shared episode parsing logic used for both filtering API results
  * and generating provider patterns.
  */
 export function parseEpisodeNumber(filename: string): number | null {
@@ -24,7 +24,7 @@ export function parseEpisodeNumber(filename: string): number | null {
 
     // Priority 4: Loose matching (e.g. " - 05", "[07]", " 40 ")
     const looseMatches = [...filename.matchAll(/(?:^|[\s_\-\.\[])(\d{1,4})(?:v\d)?(?:[\s_\-\.\]]|$)/g)];
-    
+
     for (const match of looseMatches) {
         const val = parseInt(match[1], 10);
         // Filter out common video metadata to avoid false positives
@@ -79,7 +79,7 @@ export async function fetchSubtitles(anilistId: number, episode: number, apiKey:
             const url = new URL(sub.url);
             const path = url.pathname;
             const extension = path.split('.').pop() ?? '';
-            
+
             if (UNSUPPORTED_SUBTITLE_EXTENSIONS.includes(`.${extension}`)) return false;
 
             // Robust comparison: Ensure both are numbers

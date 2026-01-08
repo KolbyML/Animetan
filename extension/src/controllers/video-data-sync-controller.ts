@@ -216,7 +216,7 @@ export default class VideoDataSyncController {
             });
 
             this.appendDebug(`AutoSync: Fetched ${fetchedSubtitles.length} tracks.`);
-            
+
             this._syncedData = {
                 subtitles: fetchedSubtitles,
                 basename: title,
@@ -228,7 +228,7 @@ export default class VideoDataSyncController {
             if (showSettings?.providerPattern) {
                 const pattern = showSettings.providerPattern;
                 const regex = new RegExp(pattern);
-                
+
                 matchedTrack = fetchedSubtitles.find((t) => regex.test(t.label));
 
                 this.appendDebug(
@@ -462,7 +462,7 @@ export default class VideoDataSyncController {
                         return tracks;
                     }
                 } catch (e) {
-                    console.error("Invalid saved provider regex", e);
+                    console.error('Invalid saved provider regex', e);
                 }
             }
         }
@@ -569,14 +569,14 @@ export default class VideoDataSyncController {
     private _addWildcardForVariableTitles(pattern: string): string {
         const anchor = '\\d+';
         const anchorIndex = pattern.indexOf(anchor);
-        
+
         if (anchorIndex === -1) return `^${pattern}$`;
 
         const tags = ['WEBRip', 'WEB-DL', 'BluRay', '1080p', '720p', 'x264', 'AAC', 'Amazon', 'Netflix', 'Hi10p'];
         const afterAnchor = pattern.substring(anchorIndex + anchor.length);
-        
+
         let bestTagIndex = -1;
-        
+
         for (const tag of tags) {
             // Match escaped delimiters (\. or \[) followed by the tag
             const tagRegex = new RegExp(`(\\\\\\\.|\\s|\\\\\\\[)${tag}`, 'i');
@@ -587,18 +587,18 @@ export default class VideoDataSyncController {
                 }
             }
         }
-        
+
         if (bestTagIndex !== -1) {
-             const prefix = pattern.substring(0, anchorIndex + anchor.length);
-             const suffix = afterAnchor.substring(bestTagIndex); 
-             return `^${prefix}.*?${suffix}$`;
+            const prefix = pattern.substring(0, anchorIndex + anchor.length);
+            const suffix = afterAnchor.substring(bestTagIndex);
+            return `^${prefix}.*?${suffix}$`;
         }
-        
+
         return `^${pattern}$`;
     }
 
     /**
-     * Generates a Regex pattern from a filename that identifies the "Provider" 
+     * Generates a Regex pattern from a filename that identifies the "Provider"
      * while genericizing the episode number.
      */
     private _extractProviderPattern(filename: string): string {
@@ -612,29 +612,29 @@ export default class VideoDataSyncController {
         // 1. Japanese Format (e.g. 第208話 -> 第\d+話)
         const jpMatches = [...filename.matchAll(/第(\d+)話/g)];
         for (const match of jpMatches) {
-             const fullMatchStr = match[0];
-             const escapedMatchStr = fullMatchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-             const genericMatchStr = escapedMatchStr.replace(/\d+/, '\\d+');
-             
-             if (currentPattern.includes(escapedMatchStr)) {
-                 currentPattern = currentPattern.replace(escapedMatchStr, genericMatchStr);
-                 replaced = true;
-             }
+            const fullMatchStr = match[0];
+            const escapedMatchStr = fullMatchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const genericMatchStr = escapedMatchStr.replace(/\d+/, '\\d+');
+
+            if (currentPattern.includes(escapedMatchStr)) {
+                currentPattern = currentPattern.replace(escapedMatchStr, genericMatchStr);
+                replaced = true;
+            }
         }
 
         // 2. Standard SxxExx (e.g. S02E078 -> S\d+E\d+)
-        const sxxMatches = [...filename.matchAll(/S\d+E(\d+)/ig)];
+        const sxxMatches = [...filename.matchAll(/S\d+E(\d+)/gi)];
         for (const match of sxxMatches) {
-             const fullMatchStr = match[0];
-             const escapedMatchStr = fullMatchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-             const genericMatchStr = escapedMatchStr.replace(/\d+/g, '\\d+');
-             
-             if (currentPattern.includes(escapedMatchStr)) {
-                 currentPattern = currentPattern.replace(escapedMatchStr, genericMatchStr);
-                 replaced = true;
-             }
+            const fullMatchStr = match[0];
+            const escapedMatchStr = fullMatchStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const genericMatchStr = escapedMatchStr.replace(/\d+/g, '\\d+');
+
+            if (currentPattern.includes(escapedMatchStr)) {
+                currentPattern = currentPattern.replace(escapedMatchStr, genericMatchStr);
+                replaced = true;
+            }
         }
-        
+
         // 3. Loose Matches (e.g. [07] or - 07) using index-based context
         const looseMatches = [...filename.matchAll(/(?:^|[\s_\-\.\[])(\d{1,4})(?:v\d)?(?:[\s_\-\.\]]|$)/g)];
         for (const match of looseMatches) {
@@ -642,15 +642,15 @@ export default class VideoDataSyncController {
             if (val === 720 || val === 1080 || val === 2160 || val === 264 || val === 265) continue;
 
             if (val === epNum) {
-                 const numberStr = match[1];
-                 const fullContext = match[0];
-                 const escapedContext = fullContext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                 const genericContext = escapedContext.replace(numberStr, '\\d+');
-                 
-                 if (currentPattern.includes(escapedContext)) {
-                     currentPattern = currentPattern.replace(escapedContext, genericContext);
-                     replaced = true;
-                 }
+                const numberStr = match[1];
+                const fullContext = match[0];
+                const escapedContext = fullContext.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const genericContext = escapedContext.replace(numberStr, '\\d+');
+
+                if (currentPattern.includes(escapedContext)) {
+                    currentPattern = currentPattern.replace(escapedContext, genericContext);
+                    replaced = true;
+                }
             }
         }
 

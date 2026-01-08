@@ -162,7 +162,14 @@ export default defineConfig({
         }
 
         if (browser === 'firefox') {
-            permissions = [...permissions, 'contextMenus', 'webRequest', 'webRequestBlocking', 'clipboardWrite', 'scripting'];
+            permissions = [
+                ...permissions,
+                'contextMenus',
+                'webRequest',
+                'webRequestBlocking',
+                'clipboardWrite',
+                'scripting',
+            ];
 
             manifest = {
                 ...manifest,
@@ -180,7 +187,7 @@ export default defineConfig({
         }
 
         if (browser === 'firefox-android') {
-            permissions = [...permissions, 'webRequest', 'webRequestBlocking', 'clipboardWrite',  'scripting'];
+            permissions = [...permissions, 'webRequest', 'webRequestBlocking', 'clipboardWrite', 'scripting'];
 
             manifest = {
                 ...manifest,
