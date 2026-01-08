@@ -20,7 +20,7 @@ Discord Server: https://discord.gg/tDAtpPN8KK
 
 🦊 Firefox Addon: **Coming soon**
 
-🌐 Chrome extension: **Coming soon**
+🌐 Chrome extension: https://chromewebstore.google.com/detail/animetan-asbplayer-with-a/mmoglblloplhkmjpeckknpadfhpgjhoi
 
 ## Extension Installation via Manual Download
 
