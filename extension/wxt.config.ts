@@ -149,10 +149,10 @@ export default defineConfig({
             };
         }
 
-        let permissions = ['tabs', 'storage'];
+        let permissions = ['tabs', 'storage', 'activeTab'];
 
         if (browser === 'chrome') {
-            permissions = [...permissions, 'tabCapture', 'activeTab', 'contextMenus', 'sidePanel', 'offscreen'];
+            permissions = [...permissions, 'tabCapture', 'contextMenus', 'sidePanel', 'offscreen'];
 
             manifest = {
                 ...manifest,
@@ -162,7 +162,7 @@ export default defineConfig({
         }
 
         if (browser === 'firefox') {
-            permissions = [...permissions, 'contextMenus', 'webRequest', 'webRequestBlocking', 'clipboardWrite'];
+            permissions = [...permissions, 'contextMenus', 'webRequest', 'webRequestBlocking', 'clipboardWrite', 'scripting'];
 
             manifest = {
                 ...manifest,
@@ -180,7 +180,7 @@ export default defineConfig({
         }
 
         if (browser === 'firefox-android') {
-            permissions = [...permissions, 'webRequest', 'webRequestBlocking', 'clipboardWrite'];
+            permissions = [...permissions, 'webRequest', 'webRequestBlocking', 'clipboardWrite',  'scripting'];
 
             manifest = {
                 ...manifest,
