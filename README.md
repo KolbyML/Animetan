@@ -18,13 +18,14 @@ Discord Server: https://discord.gg/tDAtpPN8KK
 
 ## Extension Installation via Browser Store
 
-🦊 Firefox Addon: **Coming soon**
-
 🌐 Chrome extension: https://chromewebstore.google.com/detail/animetan-asbplayer-with-a/mmoglblloplhkmjpeckknpadfhpgjhoi
 
-## Extension Installation via Manual Download
+🦊 Firefox Addon: https://addons.mozilla.org/en-US/firefox/addon/animetan-auto-subtitles/
 
-> **⚠️ Note:** Vivaldi browser is currently not supported.
+🦊 Firefox Android Addon: https://addons.mozilla.org/en-US/firefox/addon/animetan-android/
+
+
+## Extension Installation via Manual Download
 
 1. Go to the [Releases](https://github.com/kolbyml/Animetan/releases) page
 2. Find the latest release
